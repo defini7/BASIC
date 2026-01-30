@@ -1,4 +1,5 @@
 ﻿#include <iostream>
+#include <map>
 
 #include "Interpreter.hpp"
 
@@ -9,38 +10,78 @@ int main()
 
 	std::string input;
 
-	// Simple REPL
+	std::map<int, std::vector<def::Token>> programm;
+
 	do
 	{
-		std::cout << "> ";
 		std::getline(std::cin, input);
 
 		try
 		{
 			std::vector<def::Token> tokens;
-			parser.Tokenise(input, tokens);
+			int line = parser.Tokenise(input, tokens);
 
-			for (const auto& token : tokens)
-				std::cout << token.ToString() << std::endl;
-
-			auto result = interpreter.Solve(tokens);
-
-			if (result)
+			if (line == -1 && !tokens.empty())
 			{
-				std::visit([](const auto& arg)
-					{
-						if (std::is_same_v<decltype(arg), const def::Boolean&>)
-							std::cout << std::boolalpha;
+				// No line was specified but the first argument is one of CMD commands
+				// but be sure that there are no other tokens after the first one
 
-						std::cout << arg.value << std::noboolalpha << std::endl;
-					}, result.value());
+				if (tokens[0].type == def::Token::Type::Keyword_Run)
+				{
+					if (tokens.size() > 1)
+						std::cerr << "Syntax error" << std::endl;
+					else
+					{
+						auto pc = programm.begin();
+
+						while (pc != programm.end())
+						{
+							int newPc = interpreter.Execute(false, pc->second);
+
+							if (newPc == -1)
+								pc++;
+							else
+								pc = programm.find(newPc);
+						}
+					}
+				}
+				else if (tokens[0].type == def::Token::Type::Keyword_List)
+				{
+					if (tokens.size() > 1)
+						std::cerr << "Syntax error" << std::endl;
+					else
+					{
+						// Print full programm
+						for (const auto& [line, tokens] : programm)
+						{
+							std::cout << line;
+
+							for (const auto& token : tokens)
+								std::cout << ' ' << token.value;
+
+							std::cout << std::endl;
+						}
+					}
+				}
+				else
+				{
+					// Not a CMD command so just execute the line and don't save it anywhere
+					interpreter.Execute(true, tokens);
+				}
 			}
+
+			/*for (const auto& token : tokens)
+				std::cout << token.ToString() << std::endl;*/
+
+			if (line != -1)
+				programm[line] = tokens;
 		}
 		catch (const def::ParserException& e)
 		{
 			std::cerr << e.what() << std::endl;
 		}
-	} while (input != "quit");
+	}
+	while (input != "quit");
 
 	return 0;
 }

@@ -131,7 +131,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Scope.cpp" />
+    <ClCompile Include="VarStorage.cpp" />
     <ClCompile Include="Exception.cpp" />
     <ClCompile Include="Interpreter.cpp" />
     <ClCompile Include="Parser.cpp" />
@@ -139,11 +139,10 @@
     <ClCompile Include="Token.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Scope.hpp" />
+    <ClInclude Include="VarStorage.hpp" />
     <ClInclude Include="Exception.hpp" />
     <ClInclude Include="Guard.hpp" />
     <ClInclude Include="Interpreter.hpp" />
-    <ClInclude Include="Keyword.hpp" />
     <ClInclude Include="Operator.hpp" />
     <ClInclude Include="Parser.hpp" />
     <ClInclude Include="Token.hpp" />

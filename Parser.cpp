@@ -2,12 +2,16 @@
 
 namespace def
 {
-	Parser::Parser()
+	void String_ToLower(std::string& s)
 	{
-
+		for (char& c : s)
+		{
+			if (c <= 'Z' && c >= 'A')
+				c += 'z' - 'Z';
+		}
 	}
 
-	void Parser::Tokenise(std::string_view input, std::vector<Token>& tokens)
+	int Parser::Tokenise(std::string_view input, std::vector<Token>& tokens)
 	{
 		State stateNow = State::NewToken;
 		State stateNext = State::NewToken;
@@ -18,6 +22,7 @@ namespace def
 
 		// If they remain 0 at the end then ok
 		int parenthesesBalancer = 0;
+		int bracesBalancer = 0;
 		int quotesBalancer = 0;
 
 		auto StartToken = [&](Token::Type type, State nextState = State::CompleteToken, bool push = true)
@@ -53,13 +58,10 @@ namespace def
 
 				// Check for a digit
 				if (guard::Digits[*currentChar])
-				{
-					// Check for a base
-					if (*currentChar == '0')
-						StartToken(Token::Type::Literal_NumericBaseUnknown, State::Literal_NumericBaseUnknown, false);
-					else
-						StartToken(Token::Type::Literal_NumericBase10, State::Literal_NumericBase10);
-				}
+					StartToken(Token::Type::Literal_NumericBase10, State::Literal_NumericBase10);
+
+				else if (*currentChar == '&')
+					StartToken(Token::Type::Literal_NumericBaseUnknown, State::Literal_NumericBaseUnknown, false);
 
 				// Check for an operator
 				else if (guard::Operators[*currentChar])
@@ -76,25 +78,20 @@ namespace def
 				else if (guard::Symbols[*currentChar])
 					StartToken(Token::Type::Symbol, State::Symbol);
 
-				// Check for all kinds of open parentheses
-				else if (guard::ParenthesesOpen[*currentChar])
+				else if (*currentChar == '(')
 				{
 					StartToken(Token::Type::Parenthesis_Open);
 					parenthesesBalancer++;
 				}
 
-				// Check for all kinds of close parentheses
-				else if (guard::ParenthesesClose[*currentChar])
+				else if (*currentChar == ')')
 				{
 					StartToken(Token::Type::Parenthesis_Close);
 					parenthesesBalancer--;
 				}
 
-				else if (*currentChar == ',')
-					StartToken(Token::Type::Comma);
-
-				else if (*currentChar == ';')
-					StartToken(Token::Type::Semicolon);
+				else if (*currentChar == ':')
+					StartToken(Token::Type::Colon);
 
 				else
 					throw ParserException(std::string("Unexpected character: ") + *currentChar);
@@ -107,78 +104,54 @@ namespace def
 
 				switch (stateNow)
 				{
-				case State::Literal_NumericBase10:
-				{
-					// Check for continuation of numeric literal
-					if (guard::Digits[*currentChar])
-						AppendChar(State::Literal_NumericBase10);
-					else
-					{
-						// Something has occured in the number (e.g. 531abc14124)
-						if (guard::Symbols[*currentChar])
-							throw ParserException("Invalid numeric literal or symbol");
-
-						stateNext = State::CompleteToken;
-					}
-				}
-				break;
-
 				case State::Literal_NumericBaseUnknown:
 				{
+				#define Prepare(base) do { token.type = Token::Type::Literal_NumericBase##base; stateNext = State::Literal_NumericBase##base; } while (0)
+
 					if (guard::Prefixes[*currentChar])
 					{
 						// Determine base of numeric literal
 
-						if (*currentChar == 'x' || *currentChar == 'X')
-						{
-							token.type = Token::Type::Literal_NumericBase16;
-							stateNext = State::Literal_NumericBase16;
-						}
-
-						else if (*currentChar == 'b' || *currentChar == 'B')
-						{
-							token.type = Token::Type::Literal_NumericBase2;
-							stateNext = State::Literal_NumericBase2;
-						}
+						if (*currentChar == 'h' || *currentChar == 'H') Prepare(16);
+						else if (*currentChar == 'o' || *currentChar == 'O') Prepare(8);
 
 						currentChar++;
 					}
 					else
-						throw ParserException("Unknown prefix for numeric literal");
-				}
-				break;
-
-				case State::Literal_NumericBase16:
-				{
-					// Read hexadecimal number
-
-					if (guard::HexDigits[*currentChar])
-						AppendChar(State::Literal_NumericBase16);
-					else
 					{
-						if (guard::Symbols[*currentChar])
-							throw ParserException("Invalid numeric literal or symbol");
-
-						stateNext = State::CompleteToken;
+						// If there is no H or O after the & then number must be treated as a binary
+						
+						if (*currentChar == '0' || *currentChar == '1')
+						{
+							Prepare(2);
+							AppendChar(State::Literal_NumericBase2);
+						}
+						else
+							throw ParserException("Unknown prefix for numeric literal");
 					}
+
+				#undef Prepare
 				}
 				break;
 
-				case State::Literal_NumericBase2:
-				{
-					// Read binary number
-
-					if (guard::HexDigits[*currentChar])
-						AppendChar(State::Literal_NumericBase2);
-					else
-					{
-						if (guard::Symbols[*currentChar])
-							throw ParserException("Invalid numeric literal or symbol");
-
-						stateNext = State::CompleteToken;
-					}
-				}
+			#define CASE_LITERAL_NUMERIC_BASE(base, name) \
+				case State::Literal_NumericBase##base: \
+				{ \
+					if (guard::##name##Digits[*currentChar]) \
+						AppendChar(State::Literal_NumericBase##base); \
+					else \
+					{ \
+						if (guard::Symbols[*currentChar]) \
+							throw ParserException("Invalid numeric literal or symbol"); \
+						stateNext = State::CompleteToken; \
+					} \
+				} \
 				break;
+
+				CASE_LITERAL_NUMERIC_BASE(16, Hex)
+				CASE_LITERAL_NUMERIC_BASE(10)
+				CASE_LITERAL_NUMERIC_BASE(8, Oct)
+				CASE_LITERAL_NUMERIC_BASE(2, Bin)
 
 				case State::Literal_String:
 				{
@@ -235,20 +208,50 @@ namespace def
 				case State::Symbol:
 				{
 					// Note: we treat all invalid symbols (e.g. 123abc) in the Literal_Numeric state
+
 					if (guard::Symbols[*currentChar] || guard::Digits[*currentChar])
 						AppendChar(State::Symbol);
 					else
 					{
-						if (Parser::s_Keywords.contains(token.value))
-						{
-							// The symbol occurs to be a keyword
-							token.type = Token::Type::Keyword;
-						}
-						else if (token.value == "true" || token.value == "false")
-						{
-							// The symbol occurs to be boolean
-							token.type = Token::Type::Literal_Boolean;
-						}
+					parse_keyword:
+						String_ToLower(token.value);
+
+					#define Keyword(signature, name) if (token.value == signature) token.type = Token::Type::Keyword_##name
+
+						Keyword("print", Print);
+						Keyword("input", Input);
+						Keyword("cls", Cls);
+						Keyword("let", Let);
+						Keyword("rem", Rem);
+						Keyword("goto", Goto);
+						Keyword("if", If);
+						Keyword("then", Then);
+						Keyword("else", Else);
+						Keyword("for", For);
+						Keyword("to", To);
+						Keyword("step", Step);
+						Keyword("next", Next);
+						Keyword("sleep", Sleep);
+						Keyword("sin", Sin);
+						Keyword("cos", Cos);
+						Keyword("tan", Tan);
+						Keyword("arcsin", ArcSin);
+						Keyword("arccos", ArcCos);
+						Keyword("arctan", ArcTan);
+						Keyword("sqr", Sqrt);
+						Keyword("log", Log);
+						Keyword("exp", Exp);
+						Keyword("abs", Abs);
+						Keyword("sgn", Sign);
+						Keyword("int", Int);
+						Keyword("rnd", Random);
+						Keyword("list", List);
+						Keyword("run", Run);
+
+						if (currentChar == input.end())
+							goto complete_token;
+
+					#undef Keyword
 
 						stateNext = State::CompleteToken;
 					}
@@ -257,6 +260,7 @@ namespace def
 
 				case State::CompleteToken:
 				{
+				complete_token:
 					stateNext = State::NewToken;
 					tokens.push_back(token);
 
@@ -271,8 +275,14 @@ namespace def
 			stateNow = stateNext;
 		}
 
+		if (stateNext == State::Symbol)
+			goto parse_keyword;
+
 		if (parenthesesBalancer != 0)
 			throw ParserException("Parentheses were not balanced");
+
+		if (bracesBalancer != 0)
+			throw ParserException("Braces were not balanced");
 
 		if (quotesBalancer != 0)
 			throw ParserException("Quotes were not balanced");
@@ -280,6 +290,15 @@ namespace def
 		// Drain out the last token
 		if (!token.value.empty())
 			tokens.push_back(token);
+		
+		// In the original BASIC I guess "2.5 + 2" must be treated as "2 .5 + 2" but for now let's treat it as "2.5 + 2"
+		if (tokens.empty() || tokens.front().type != Token::Type::Literal_NumericBase10 || tokens.front().value.find('.') != std::string::npos)
+			return -1;
+
+		int line = std::stoi(tokens.front().value);
+		tokens.erase(tokens.begin());
+
+		return line;
 	}
 
 	std::unordered_map<std::string, Operator> Parser::s_Operators =
@@ -287,6 +306,7 @@ namespace def
 		{"=", { Operator::Type::Assign, 0, 2 } },
 		{"==", { Operator::Type::Equals, 1, 2 } },
 		{"-", { Operator::Type::Subtraction, 2, 2 } },
+		{";", { Operator::Type::Semicolon, 2, 2 } },
 		{"+", { Operator::Type::Addition, 2, 2 } },
 		{"*", { Operator::Type::Multiplication, 3, 2 } },
 		{"/", { Operator::Type::Division, 3, 2 } },
@@ -294,12 +314,5 @@ namespace def
 		// Unary operators (in that way they are easier to handle)
 		{"u-", { Operator::Type::Subtraction, Operator::MAX_PRECEDENCE, 1 } },
 		{"u+", { Operator::Type::Addition, Operator::MAX_PRECEDENCE, 1 } },
-	};
-
-	std::unordered_map<std::string, Keyword> Parser::s_Keywords =
-	{
-		{ "if", {} },
-		{ "while", {} },
-		{ "for", {} }
 	};
 }

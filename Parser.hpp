@@ -8,14 +8,15 @@
 #include "Token.hpp"
 #include "Guard.hpp"
 #include "Exception.hpp"
-#include "Keyword.hpp"
 
 namespace def
 {
+    void String_ToLower(std::string& s);
+
 	class Parser
 	{
 	public:
-		Parser();
+		Parser() = default;
 
 	public:
 		enum class State
@@ -32,11 +33,10 @@ namespace def
 			Symbol
 		};
 
-		void Tokenise(std::string_view input, std::vector<Token>& tokens);
+		int Tokenise(std::string_view input, std::vector<Token>& tokens);
 
 	public:
 		static std::unordered_map<std::string, Operator> s_Operators;
-		static std::unordered_map<std::string, Keyword> s_Keywords;
 
 	};
 }

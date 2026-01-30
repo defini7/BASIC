@@ -4,6 +4,8 @@
 
 namespace def
 {
+	typedef unsigned char Uint8;
+
 	struct Operator
 	{
 		enum class Type
@@ -13,13 +15,14 @@ namespace def
 			Multiplication,
 			Division,
 			Equals,
-			Assign
+			Assign,
+			Semicolon
 		};
 
 		Type type;
-		unsigned char precedence;
-		unsigned char arguments;
+		Uint8 precedence;
+		Uint8 arguments;
 
-		static constexpr unsigned char MAX_PRECEDENCE = std::numeric_limits<unsigned char>::max();
+		static constexpr Uint8 MAX_PRECEDENCE = std::numeric_limits<Uint8>::max();
 	};
 }
