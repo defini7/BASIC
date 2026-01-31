@@ -22,7 +22,6 @@ namespace def
 
 		// If they remain 0 at the end then ok
 		int parenthesesBalancer = 0;
-		int bracesBalancer = 0;
 		int quotesBalancer = 0;
 
 		auto StartToken = [&](Token::Type type, State nextState = State::CompleteToken, bool push = true)
@@ -92,6 +91,9 @@ namespace def
 
 				else if (*currentChar == ':')
 					StartToken(Token::Type::Colon);
+				
+				else if (*currentChar == ';')
+					StartToken(Token::Type::Semicolon);
 
 				else
 					throw ParserException(std::string("Unexpected character: ") + *currentChar);
@@ -247,6 +249,7 @@ namespace def
 						Keyword("rnd", Random);
 						Keyword("list", List);
 						Keyword("run", Run);
+						Keyword("new", New);
 
 						if (currentChar == input.end())
 							goto complete_token;
@@ -281,9 +284,6 @@ namespace def
 		if (parenthesesBalancer != 0)
 			throw ParserException("Parentheses were not balanced");
 
-		if (bracesBalancer != 0)
-			throw ParserException("Braces were not balanced");
-
 		if (quotesBalancer != 0)
 			throw ParserException("Quotes were not balanced");
 
@@ -306,7 +306,6 @@ namespace def
 		{"=", { Operator::Type::Assign, 0, 2 } },
 		{"==", { Operator::Type::Equals, 1, 2 } },
 		{"-", { Operator::Type::Subtraction, 2, 2 } },
-		{";", { Operator::Type::Semicolon, 2, 2 } },
 		{"+", { Operator::Type::Addition, 2, 2 } },
 		{"*", { Operator::Type::Multiplication, 3, 2 } },
 		{"/", { Operator::Type::Division, 3, 2 } },

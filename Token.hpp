@@ -18,6 +18,7 @@ namespace def
 			Literal_String,
 			Symbol,
 			Colon,
+			Semicolon,
 			Operator,
 			Parenthesis_Open,
 			Parenthesis_Close,
@@ -51,7 +52,8 @@ namespace def
 			Keyword_Random,
 
 			Keyword_List,
-			Keyword_Run
+			Keyword_Run,
+			Keyword_New
 		};
 
 	public:

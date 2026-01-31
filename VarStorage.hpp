@@ -7,17 +7,19 @@
 
 namespace def
 {
+	using Real = long double;
+
 	template <class T>
 	struct Type
 	{
 		T value;
 	};
 
-	struct Numeric : Type<long double>
+	struct Numeric : Type<Real>
 	{
-		static constexpr long double MIN = std::numeric_limits<long double>::min();
-		static constexpr long double MAX = std::numeric_limits<long double>::max();
-		static constexpr long double EPS = std::numeric_limits<long double>::epsilon();
+		static constexpr Real MIN = std::numeric_limits<Real>::min();
+		static constexpr Real MAX = std::numeric_limits<Real>::max();
+		static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
 	};
 
 	struct String : Type<std::string> {};

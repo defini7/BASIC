@@ -15,8 +15,7 @@ namespace def
 			Multiplication,
 			Division,
 			Equals,
-			Assign,
-			Semicolon
+			Assign
 		};
 
 		Type type;

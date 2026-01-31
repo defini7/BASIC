@@ -5,12 +5,12 @@
 #include <thread>
 #include <chrono>
 
-#define LD_SIGN(v) (long double)((0.0l < v) - (v < 0.0l))
+#define REAL_SIGN(v) (Real)((0.0l < v) - (v < 0.0l))
 
 namespace def
 {
 	// Returns result of expression and position of next token after end of expression
-	std::pair<Object, Interpreter::TokenIter> Interpreter::ParseExpression(TokenIter iter)
+	std::pair<Object, TokenIter> Interpreter::ParseExpression(TokenIter iter)
 	{
 		// Using Shunting yard algorithm
 
@@ -47,6 +47,7 @@ namespace def
 			case Token::Type::Keyword_Step:
 			case Token::Type::Keyword_Next:
 			case Token::Type::Keyword_Sleep:
+			case Token::Type::Semicolon:
 			case Token::Type::Colon:
 				goto out;
 
@@ -179,8 +180,8 @@ namespace def
 			switch (token.type)
 			{
 			case Token::Type::Literal_NumericBase10: solving.push_back(Numeric{ std::stold(token.value) }); break;
-			case Token::Type::Literal_NumericBase16: solving.push_back(Numeric{ (long double)std::stoll(token.value, nullptr, 16) }); break;
-			case Token::Type::Literal_NumericBase2:  solving.push_back(Numeric{ (long double)std::stoll(token.value, nullptr, 2) }); break;
+			case Token::Type::Literal_NumericBase16: solving.push_back(Numeric{ (Real)std::stoll(token.value, nullptr, 16) }); break;
+			case Token::Type::Literal_NumericBase2:  solving.push_back(Numeric{ (Real)std::stoll(token.value, nullptr, 2) }); break;
 
 			case Token::Type::Literal_String:
 				solving.push_back(String{ token.value });
@@ -213,7 +214,7 @@ namespace def
 				case 1:
 				{
 					// Handle unary operators
-					long double number = UnwrapValue(Numeric, arguments[0], "Can't apply unary operator to non-numeric value");
+					Real number = UnwrapValue(Numeric, arguments[0], "Can't apply unary operator to non-numeric value");
 
 					switch (op.type)
 					{
@@ -233,8 +234,8 @@ namespace def
 
 						const std::string lhs = UnwrapValue(String, arguments[1], "");
 
-						if (op.type != Operator::Type::Semicolon)
-							throw InterpreterException("Can perform only concatenation (;) with strings: " + lhs);
+						if (op.type != Operator::Type::Addition)
+							throw InterpreterException("Can perform only concatenation (+) with strings: " + lhs);
 
 						const std::string rhs = UnwrapValue(String, arguments[0], "Can only concatenate string with another string: " + lhs);
 
@@ -246,14 +247,14 @@ namespace def
 						{
 						case Operator::Type::Equals:
 						{
-							auto CheckTypes = [&]<class T>(const std::string & name)
+							auto CheckTypes = [&]<class T>(const std::string& name)
 							{
 								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1]))
 								{
 									const auto lhs = UnwrapValue(T, arguments[1], "");
 									const auto rhs = UnwrapValue(T, arguments[0], "Can only compare a " + name + " with another " + name);
 
-									object = Numeric{ (long double)(lhs == rhs) };
+									object = Numeric{ (Real)(lhs == rhs) };
 									return true;
 								}
 
@@ -315,7 +316,7 @@ namespace def
 				if (!std::holds_alternative<Numeric>(solving.back())) \
 					throw InterpreterException("Argument must be numeric: "#signature" <arg>"); \
 			\
-				long double value = std::get<Numeric>(solving.back()).value; \
+				Real value = std::get<Numeric>(solving.back()).value; \
 			\
 				if (value < bottom || value > top) \
 					throw InterpreterException("Argument must be within the range: [" + std::to_string(bottom) + ", " + std::to_string(top) + "]"); \
@@ -336,11 +337,11 @@ namespace def
 			FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
 			FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
 			FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
-			FUNC(LD_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
+			FUNC(REAL_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
 			FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
 
 			case Token::Type::Keyword_Random:
-				solving.push_back(Numeric{ (long double)rand() / (long double)RAND_MAX });
+				solving.push_back(Numeric{ (Real)rand() / (Real)RAND_MAX });
 			break;
 
 			}
@@ -348,6 +349,9 @@ namespace def
 		}
 
 	#undef UnwrapValue
+
+		if (solving.empty())
+			return std::make_pair(Object(), token);
 
 		Object obj = solving.back();
 
@@ -362,92 +366,159 @@ namespace def
 		return std::make_pair(obj, token);
 	}
 
-	int Interpreter::Execute(bool isTerminalMode, const std::vector<Token>& tokens)
+	int Interpreter::Execute(const std::vector<Token>& tokens, int line)
 	{
-		m_NextLine = -1;
-		bool newStmt = true;
+		if (m_LineOffset >= tokens.size())
+		{
+			m_LineOffset = 0;
+			return -1;
+		}
 
+		m_NextLine = -1;
 		m_EndIter = tokens.end();
 
-	#define NEW_STMT if (!newStmt) throw InterpreterException("Expected : before new statement");
+		bool newStmt = true;
 
-		for (auto token = tokens.begin(); token != tokens.end();)
+	#define NEW_STMT if (!newStmt) throw InterpreterException("Expected : before new statement")
+
+		m_Token = tokens.begin() + m_LineOffset;
+
+		while (m_Token != tokens.end())
 		{
-			switch (token->type)
+			switch (m_Token->type)
 			{
-			case Token::Type::Keyword_Print: NEW_STMT token = HandlePrint(token); newStmt = false; break;
-			case Token::Type::Keyword_Input: NEW_STMT token = HandleInput(token); newStmt = false; break;
-			case Token::Type::Keyword_Cls: NEW_STMT token = HandleCls(token); newStmt = false; break;
-			case Token::Type::Keyword_Let: NEW_STMT token = HandleLet(token); newStmt = false; break;
-			case Token::Type::Keyword_Rem: NEW_STMT goto out1;
-			case Token::Type::Keyword_Goto: NEW_STMT token = HandleGoto(token); goto out1;
-			case Token::Type::Keyword_If: NEW_STMT token = HandleIf(token); newStmt = false; break;
-			case Token::Type::Keyword_Else: NEW_STMT token = HandleElse(token); newStmt = false; break;
-			case Token::Type::Keyword_For: NEW_STMT token = HandleFor(token); newStmt = false; break;
-			case Token::Type::Keyword_Next: NEW_STMT token = HandleNext(token); newStmt = false; break;
-			case Token::Type::Keyword_Sleep: NEW_STMT token = HandleSleep(token); newStmt = false; break;
+			case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
+			case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
+			case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
+			case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
+			case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
+			case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
+			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = false; break;
+			case Token::Type::Keyword_Else: NEW_STMT; HandleElse(); newStmt = false; break;
+			
+			case Token::Type::Keyword_For:
+			{
+				NEW_STMT;
+				HandleFor();
+				newStmt = false;
+
+				ForNode& node = m_ForStack.back();
+
+				node.lineData = &tokens;
+				node.posInLine = std::distance(tokens.begin(), m_Token);
+				node.line = line;
+
+				m_LineOffset = node.posInLine + 1;
+			}
+			break;
+
+			case Token::Type::Keyword_Next:
+			{
+				NEW_STMT;
+				HandleNext();
+				newStmt = false;
+
+				if (m_NextLine != -1)
+				{
+					ForNode& node = m_ForStack.back();
+					m_LineOffset = node.posInLine + 1;
+					goto out1;
+				}
+			}
+			break;
+
+			case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
 
 			default:
 			{
-				if (token->type == Token::Type::Colon)
+				if (m_Token->type == Token::Type::Colon)
+				{
 					newStmt = true;
+					++m_Token;
+				}
 				else
 					newStmt = false;
 
-				/*TokenIter end;
-				ParseExpression(token, end);*/
-				++token;
+				auto [_, end] = ParseExpression(m_Token);
+
+				if (m_Token == end)
+				{
+					m_NextLine = line;
+					m_LineOffset = std::distance(tokens.begin(), m_Token);
+					goto out1;
+				}
+
+				m_Token = end;
 			}
 
 			}
 		}
+
+		m_LineOffset = 0;
 
 		out1:
 
 		return m_NextLine;
 	}
 
-	// PRINT <expr>
-	Interpreter::TokenIter Interpreter::HandlePrint(TokenIter iter)
+	// PRINT <?expr>; <?expr>; ...
+	void Interpreter::HandlePrint()
 	{
-		// PRINT
-		++iter;
+		do
+		{
+			// PRINT / ;
+			++m_Token;
 
-		// <arg>
-		auto [res, end] = ParseExpression(iter);
+			// <?expr>
+			auto [res, end] = ParseExpression(m_Token);
+			m_Token = end;
 
-		std::visit([](const auto& obj)
-			{
-				std::cout << obj.value << std::endl;
-			}, res);
+			std::visit([](const auto& obj)
+				{
+					std::cout << obj.value;
+				}, res);
+		}
+		while (m_Token != m_EndIter && m_Token->type == Token::Type::Semicolon);
 
-		return end;
+		std::cout << std::endl;
 	}
 
-	// INPUT <arg>
-	Interpreter::TokenIter Interpreter::HandleInput(TokenIter iter)
+	// INPUT <?question>; <arg>
+	void Interpreter::HandleInput()
 	{
 		// INPUT
-		++iter;
+		++m_Token;
 
-		// <arg>
-		auto [sym, end] = ParseExpression(iter);
+		// <question> / <arg>
+		auto [expr, end] = ParseExpression(m_Token);
 
-		if (std::holds_alternative<Symbol>(sym))
+		if (end != m_EndIter && end->type == Token::Type::Semicolon)
 		{
-			std::string name = std::get<Symbol>(sym).value;
+			// ;
+			++end;
+
+			if (std::holds_alternative<String>(expr))
+				std::cout << std::get<String>(expr).value;
+
+			// <arg>
+			std::tie(expr, end) = ParseExpression(end);
+		}
+
+		m_Token = end;
+
+		if (std::holds_alternative<Symbol>(expr))
+		{
+			std::string name = std::get<Symbol>(expr).value;
 
 			std::string line;
 			std::getline(std::cin, line);
 
 			m_Variables.Set(name, String{ line });
 		}
-
-		return end;
 	}
 
 	// CLS
-	Interpreter::TokenIter Interpreter::HandleCls(TokenIter iter)
+	void Interpreter::HandleCls()
 	{
 	#ifdef _WIN32
 		system("cls");
@@ -455,78 +526,171 @@ namespace def
 		system("clear");
 	#endif
 
-		return iter + 1;
+		++m_Token;
 	}
 
 	// LET <name> = <expr>
-	Interpreter::TokenIter Interpreter::HandleLet(TokenIter iter)
+	void Interpreter::HandleLet()
 	{
 		// LET
-		++iter;
+		++m_Token;
 
 		// <name>
-		if (iter->type != Token::Type::Symbol)
+		if (m_Token->type != Token::Type::Symbol)
 			throw InterpreterException("Expected variable name: LET <name> = <expr>");
 
-		std::string name = iter->value;
-		++iter;
+		std::string name = m_Token->value;
+		++m_Token;
 
 		// =
-		if (iter->type != Token::Type::Operator)
+		if (m_Token->type != Token::Type::Operator)
 			throw InterpreterException("Expected =: LET <name> = <expr>");
 
 		// <expr>
-		auto [res, end] = ParseExpression(iter + 1);
+		auto [res, end] = ParseExpression(m_Token + 1);
 
 		m_Variables.Set(name, res);
 
-		return end;
+		m_Token = end;
 	}
 
 	// GOTO <line>
-	Interpreter::TokenIter Interpreter::HandleGoto(TokenIter iter)
+	void Interpreter::HandleGoto()
 	{
 		// GOTO
-		++iter;
+		++m_Token;
 
 		// <line>
-		auto [res, end] = ParseExpression(iter);
+		auto [res, end] = ParseExpression(m_Token);
 
 		if (!std::holds_alternative<Numeric>(res))
-			throw InterpreterException("Expected numeric value as a line number: GOTO <line>");
+			throw InterpreterException("Expected line number to be numeric: GOTO <line>");
 
 		m_NextLine = (int)std::get<Numeric>(res).value;
-		return end;
+		m_Token = end;
 	}
 
-	Interpreter::TokenIter Interpreter::HandleIf(TokenIter iter)
+	void Interpreter::HandleIf()
 	{
-		return iter + 1;
+		++m_Token;
 	}
 
-	Interpreter::TokenIter Interpreter::HandleElse(TokenIter iter)
+	void Interpreter::HandleElse()
 	{
-		return iter + 1;
+		++m_Token;
 	}
 
-	Interpreter::TokenIter Interpreter::HandleFor(TokenIter iter)
+	// FOR <var>=<expr> TO <expr> ? STEP <expr>
+	void Interpreter::HandleFor()
 	{
-		return iter + 1;
+		ForNode node;
+
+		Object res;
+
+		// FOR
+		++m_Token;
+
+		// <var>
+		if (m_Token->type != Token::Type::Symbol)
+			throw InterpreterException("Expected variable name: FOR <var>=...");
+
+		node.varName = m_Token->value;
+		++m_Token;
+
+		// =
+		if (m_Token->type != Token::Type::Operator)
+			throw InterpreterException("Expected =: FOR <var>=...");
+
+		++m_Token;
+
+		// <expr>
+		try
+		{
+			std::tie(res, m_Token) = ParseExpression(m_Token);
+
+			if (!std::holds_alternative<Numeric>(res))
+				throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> ...");
+
+			node.startValue = std::get<Numeric>(res).value;
+		}
+		catch (InterpreterException& _)
+		{
+			std::cerr << "[Interpreter exception] Expected expression after =: FOR <var>=<expr> ..." << std::endl;
+		}
+
+		// TO
+		if (m_Token->type != Token::Type::Keyword_To)
+			throw InterpreterException("Expected TO after <expr>: FOR <var>=<expr> TO ...");
+
+		++m_Token;
+
+		// <expr>
+		try
+		{
+			std::tie(res, m_Token) = ParseExpression(m_Token);
+
+			if (!std::holds_alternative<Numeric>(res))
+				throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> TO <expr> ...");
+
+			node.endValue = std::get<Numeric>(res).value;
+		}
+		catch (InterpreterException& _)
+		{
+			std::cerr << "[Interpreter exception] Expected expression after TO: FOR <var>=<expr> TO <expr> ..." << std::endl;
+		}
+
+		// STEP
+		if (m_Token != m_EndIter && m_Token->type == Token::Type::Keyword_Step)
+		{
+			++m_Token;
+
+			// <expr>
+			try
+			{
+				std::tie(res, m_Token) = ParseExpression(m_Token);
+
+				if (!std::holds_alternative<Numeric>(res))
+					throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> TO <expr> STEP <expr> ...");
+
+				node.step = std::get<Numeric>(res).value;
+			}
+			catch (InterpreterException& _)
+			{
+				std::cerr << "[Interpreter exception] Expected expression after STEP: FOR <var>=<expr> TO <expr> STEP <expr>" << std::endl;
+			}
+		}
+		else
+			node.step = 1.0;
+
+		m_Variables.Set(node.varName, Numeric{ node.startValue });
+		m_ForStack.push_back(node);
 	}
 
-	Interpreter::TokenIter Interpreter::HandleNext(TokenIter iter)
+	void Interpreter::HandleNext()
 	{
-		return iter + 1;
+		// NEXT
+		++m_Token;
+
+		if (m_ForStack.empty())
+			throw InterpreterException("NEXT without FOR");
+
+		ForNode& node = m_ForStack.back();
+
+		node.startValue += node.step;
+		m_Variables.Set(node.varName, Numeric{ node.startValue });
+
+		if (node.startValue <= node.endValue)
+			m_NextLine = node.line;
 	}
 
 	// SLEEP <arg>
-	Interpreter::TokenIter Interpreter::HandleSleep(TokenIter iter)
+	void Interpreter::HandleSleep()
 	{
 		// SLEEP
-		++iter;
+		++m_Token;
 
 		// <expr>
-		auto [res, end] = ParseExpression(iter);
+		auto [res, end] = ParseExpression(m_Token);
 
 		if (std::holds_alternative<Numeric>(res))
 		{
@@ -537,7 +701,5 @@ namespace def
 
 			std::this_thread::sleep_for(std::chrono::seconds(secs));
 		}
-
-		return end;
 	}
 }

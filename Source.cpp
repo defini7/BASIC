@@ -32,16 +32,16 @@ int main()
 						std::cerr << "Syntax error" << std::endl;
 					else
 					{
-						auto pc = programm.begin();
+						auto line = programm.begin();
 
-						while (pc != programm.end())
+						while (line != programm.end())
 						{
-							int newPc = interpreter.Execute(false, pc->second);
+							int nextLine = interpreter.Execute(line->second, line->first);
 
-							if (newPc == -1)
-								pc++;
+							if (nextLine == -1)
+								line++;
 							else
-								pc = programm.find(newPc);
+								line = programm.find(nextLine);
 						}
 					}
 				}
@@ -63,10 +63,12 @@ int main()
 						}
 					}
 				}
+				else if (tokens[0].type == def::Token::Type::Keyword_New)
+					programm.clear();
 				else
 				{
 					// Not a CMD command so just execute the line and don't save it anywhere
-					interpreter.Execute(true, tokens);
+					interpreter.Execute(tokens);
 				}
 			}
 
