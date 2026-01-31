@@ -17,7 +17,7 @@ namespace def
 			return chars;
 		}
 
-		constexpr auto Digits = Create(".0123456789");
+		constexpr auto DecDigits = Create(".0123456789");
 		constexpr auto HexDigits = Create("0123456789ABCDEFabcdef");
 		constexpr auto OctDigits = Create("01234567");
 		constexpr auto BinDigits = Create("01");

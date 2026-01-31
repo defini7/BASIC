@@ -1,4 +1,4 @@
-#include "Exception.hpp"
+#include "../Include/Exception.hpp"
 
 namespace def
 {
@@ -7,7 +7,7 @@ namespace def
 		m_Message = message;
 	}
 
-	const char* Exception::what() const
+	const char* Exception::what() const noexcept
 	{
 		return m_Message.c_str();
 	}

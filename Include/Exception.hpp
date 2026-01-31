@@ -8,7 +8,7 @@ namespace def
 	{
 		Exception(const std::string& message);
 
-		const char* what() const override;
+		const char* what() const noexcept override;
 
 	private:
 		std::string m_Message;

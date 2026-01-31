@@ -1,0 +1,1 @@
+clang++ -std=c++20 Sources/Exception.cpp Sources/Interpreter.cpp Sources/Parser.cpp Sources/Token.cpp Sources/VarStorage.cpp Sources/Source.cpp -o Build/basic

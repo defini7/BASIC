@@ -1,4 +1,4 @@
-#include "Parser.hpp"
+#include "../Include/Parser.hpp"
 
 namespace def
 {
@@ -56,7 +56,7 @@ namespace def
 				}
 
 				// Check for a digit
-				if (guard::Digits[*currentChar])
+				if (guard::DecDigits[*currentChar])
 					StartToken(Token::Type::Literal_NumericBase10, State::Literal_NumericBase10);
 
 				else if (*currentChar == '&')
@@ -139,7 +139,7 @@ namespace def
 			#define CASE_LITERAL_NUMERIC_BASE(base, name) \
 				case State::Literal_NumericBase##base: \
 				{ \
-					if (guard::##name##Digits[*currentChar]) \
+					if (guard::name##Digits[*currentChar]) \
 						AppendChar(State::Literal_NumericBase##base); \
 					else \
 					{ \
@@ -151,7 +151,7 @@ namespace def
 				break;
 
 				CASE_LITERAL_NUMERIC_BASE(16, Hex)
-				CASE_LITERAL_NUMERIC_BASE(10)
+				CASE_LITERAL_NUMERIC_BASE(10, Dec)
 				CASE_LITERAL_NUMERIC_BASE(8, Oct)
 				CASE_LITERAL_NUMERIC_BASE(2, Bin)
 
@@ -211,7 +211,7 @@ namespace def
 				{
 					// Note: we treat all invalid symbols (e.g. 123abc) in the Literal_Numeric state
 
-					if (guard::Symbols[*currentChar] || guard::Digits[*currentChar])
+					if (guard::Symbols[*currentChar] || guard::DecDigits[*currentChar])
 						AppendChar(State::Symbol);
 					else
 					{
