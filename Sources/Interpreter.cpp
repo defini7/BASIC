@@ -393,8 +393,8 @@ namespace def
 			case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
 			case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
 			case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
-			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = false; break;
-			case Token::Type::Keyword_Else: NEW_STMT; HandleElse(); newStmt = false; break;
+			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = false; m_NextLine = line; break;
+			case Token::Type::Keyword_Else: NEW_STMT; HandleElse(); newStmt = false; m_NextLine = line; break;
 			
 			case Token::Type::Keyword_For:
 			{
@@ -404,7 +404,6 @@ namespace def
 
 				ForNode& node = m_ForStack.back();
 
-				node.lineData = &tokens;
 				node.posInLine = std::distance(tokens.begin(), m_Token);
 				node.line = line;
 
@@ -570,14 +569,65 @@ namespace def
 		m_Token = end;
 	}
 
+	// IF <expr> THEN <stmt> ELSE <stmt>
 	void Interpreter::HandleIf()
 	{
+		// IF
 		++m_Token;
+
+		// <expr>
+		auto [res, iter] = ParseExpression(m_Token);
+
+		if (!std::holds_alternative<Numeric>(res))
+			throw InterpreterException("Expected expression result to be numeric: IF <expr> ...");
+
+		// if <expr>=0 then move to else block if it exists
+		if (std::get<Numeric>(res).value == 0.0)
+		{
+			int elseBalancer = 0;
+
+			// We need to find ELSE block and execute it
+			m_SkipElse = false;
+
+			// Searching for the corresponding ELSE block
+			while (iter != m_EndIter)
+			{
+				if (iter->type == Token::Type::Keyword_If)
+					++elseBalancer;
+
+				if (iter->type == Token::Type::Keyword_Else)
+				{	
+					if (elseBalancer == 0)
+					{
+						// Found corresponding ELSE block so just stop here
+						m_Token = iter + 1;
+						return;
+					}
+
+					--elseBalancer;
+				}
+				
+				++iter;
+			}
+		}
+		else // <expr> != 0
+			m_SkipElse = true;
 	}
 
 	void Interpreter::HandleElse()
 	{
-		++m_Token;
+		if (m_SkipElse)
+		{
+			// We need to skip the corresponding ELSE block so just move to the end of the line
+			m_Token = m_EndIter;
+		}
+		else
+		{
+			m_SkipElse = true;
+
+			// ELSE
+			++m_Token;
+		}
 	}
 
 	// FOR <var>=<expr> TO <expr> ? STEP <expr>

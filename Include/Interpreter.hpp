@@ -19,8 +19,6 @@ namespace def
 		int line;
 		int posInLine;
 
-		std::vector<Token> const* lineData;
-
 		long double startValue;
 		long double endValue;
 		long double step;
@@ -58,6 +56,9 @@ namespace def
 		TokenIter m_Token;
 
 		std::deque<ForNode> m_ForStack;
+		std::deque<ForNode> m_IfStack;
+
+		bool m_SkipElse = true;
 
 	};
 }
