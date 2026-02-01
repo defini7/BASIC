@@ -243,30 +243,40 @@ namespace def
 					}
 					else
 					{
+						#define DEFINE_CHECK_TYPES(op) \
+							auto CheckTypes = [&]<class T>(const std::string& name) \
+							{ \
+								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
+								{ \
+									const auto lhs = UnwrapValue(T, arguments[1], ""); \
+									const auto rhs = UnwrapValue(T, arguments[0], "Can only compare a " + name + " with another " + name); \
+								\
+									object = Numeric{ (Real)(lhs op rhs) }; \
+									return true; \
+								} \
+								\
+								return false; \
+							}
+
+						#define CASE_COMP(sign, op) \
+							case Operator::Type::sign: \
+							{ \
+								DEFINE_CHECK_TYPES(op); \
+							\
+								if (CheckTypes.operator()<Numeric>("number")) {} \
+								else if (CheckTypes.operator()<String>("string")) {} \
+								else throw InterpreterException("Can't compare 2 values"); \
+							} \
+							break;
+
 						switch (op.type)
 						{
-						case Operator::Type::Equals:
-						{
-							auto CheckTypes = [&]<class T>(const std::string& name)
-							{
-								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1]))
-								{
-									const auto lhs = UnwrapValue(T, arguments[1], "");
-									const auto rhs = UnwrapValue(T, arguments[0], "Can only compare a " + name + " with another " + name);
-
-									object = Numeric{ (Real)(lhs == rhs) };
-									return true;
-								}
-
-								return false;
-							};
-
-							if (CheckTypes.operator()<Numeric>("number"));
-							else if (CheckTypes.operator()<String>("string"));
-							else
-								throw InterpreterException("Can't compare 2 values");
-						}
-						break;
+							CASE_COMP(Equals, ==)
+							CASE_COMP(NotEquals, !=)
+							CASE_COMP(Less, <)
+							CASE_COMP(Greater, >)
+							CASE_COMP(LessEquals, <=)
+							CASE_COMP(GreaterEquals, >=)
 
 						case Operator::Type::Assign:
 						{
@@ -297,6 +307,9 @@ namespace def
 						}
 
 						};
+
+						#undef DEFINE_CHECK_TYPES
+						#undef CASE_COMP
 					}
 				}
 				break;
@@ -393,8 +406,8 @@ namespace def
 			case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
 			case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
 			case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
-			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = false; m_NextLine = line; break;
-			case Token::Type::Keyword_Else: NEW_STMT; HandleElse(); newStmt = false; m_NextLine = line; break;
+			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
+			case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
 			
 			case Token::Type::Keyword_For:
 			{
@@ -470,16 +483,20 @@ namespace def
 
 			// <?expr>
 			auto [res, end] = ParseExpression(m_Token);
-			m_Token = end;
 
-			std::visit([](const auto& obj)
-				{
-					std::cout << obj.value;
-				}, res);
+			if (m_Token == end)
+				std::cout << std::endl;
+			else
+			{
+				m_Token = end;
+
+				std::visit([](const auto& obj)
+					{
+						std::cout << obj.value;
+					}, res);
+			}
 		}
 		while (m_Token != m_EndIter && m_Token->type == Token::Type::Semicolon);
-
-		std::cout << std::endl;
 	}
 
 	// INPUT <?question>; <arg>
@@ -581,6 +598,12 @@ namespace def
 		if (!std::holds_alternative<Numeric>(res))
 			throw InterpreterException("Expected expression result to be numeric: IF <expr> ...");
 
+		// THEN
+		if (iter->type != Token::Type::Keyword_Then)
+			throw InterpreterException("Expected THEN after IF: IF <expr> THEN ...");
+
+		++iter;
+
 		// if <expr>=0 then move to else block if it exists
 		if (std::get<Numeric>(res).value == 0.0)
 		{
@@ -609,9 +632,13 @@ namespace def
 				
 				++iter;
 			}
+
+			// No ELSE block
 		}
 		else // <expr> != 0
 			m_SkipElse = true;
+
+		m_Token = iter;
 	}
 
 	void Interpreter::HandleElse()

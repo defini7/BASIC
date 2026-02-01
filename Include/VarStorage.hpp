@@ -17,7 +17,7 @@ namespace def
 
 	struct Numeric : Type<Real>
 	{
-		static constexpr Real MIN = std::numeric_limits<Real>::min();
+		static constexpr Real MIN = std::numeric_limits<Real>::lowest();
 		static constexpr Real MAX = std::numeric_limits<Real>::max();
 		static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
 	};

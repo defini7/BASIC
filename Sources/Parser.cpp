@@ -305,6 +305,11 @@ namespace def
 	{
 		{"=", { Operator::Type::Assign, 0, 2 } },
 		{"==", { Operator::Type::Equals, 1, 2 } },
+		{"<>", { Operator::Type::NotEquals, 1, 2 } },
+		{"<", { Operator::Type::Less, 1, 2 } },
+		{">", { Operator::Type::Greater, 1, 2 } },
+		{"<=", { Operator::Type::LessEquals, 1, 2 } },
+		{">=", { Operator::Type::GreaterEquals, 1, 2 } },
 		{"-", { Operator::Type::Subtraction, 2, 2 } },
 		{"+", { Operator::Type::Addition, 2, 2 } },
 		{"*", { Operator::Type::Multiplication, 3, 2 } },

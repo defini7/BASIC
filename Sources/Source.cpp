@@ -57,7 +57,12 @@ int main()
 							std::cout << line;
 
 							for (const auto& token : tokens)
-								std::cout << ' ' << token.value;
+							{
+								if (token.type == def::Token::Type::Literal_String)
+									std::cout << ' ' << '"' << token.value << '"';
+								else
+									std::cout << ' ' << token.value;
+							}
 
 							std::cout << std::endl;
 						}

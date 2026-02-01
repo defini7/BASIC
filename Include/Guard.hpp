@@ -24,7 +24,7 @@ namespace def
 		constexpr auto Prefixes = Create("xob");
 		constexpr auto Whitespaces = Create(" \t\n\r\v");
 		constexpr auto Symbols = Create("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789_.");
-		constexpr auto Operators = Create("+-*/=");
+		constexpr auto Operators = Create("+-*/=<>");
 		constexpr auto Quotes = Create("'\"");
 	}
 }

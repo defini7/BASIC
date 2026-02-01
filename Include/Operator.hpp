@@ -15,6 +15,11 @@ namespace def
 			Multiplication,
 			Division,
 			Equals,
+			NotEquals,
+			Less,
+			Greater,
+			LessEquals,
+			GreaterEquals,
 			Assign
 		};
 
