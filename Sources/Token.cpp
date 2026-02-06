@@ -1,4 +1,4 @@
-#include "../Include/Token.hpp"
+#include "Include/Token.hpp"
 
 namespace def
 {
@@ -50,7 +50,7 @@ namespace def
 		case Type::Keyword_Abs:            tag = "[Keyword, Abs        ] "; break;
 		case Type::Keyword_Sign:           tag = "[Keyword, Sign       ] "; break;
 		case Type::Keyword_Int:            tag = "[Keyword, Int        ] "; break;
-		case Type::Keyword_Random:         tag = "[Keyword, Random     ] "; break;
+        case Type::Keyword_Random:         tag = "[Keyword, Random     ] "; break;
 		}
 
 		return tag + value;

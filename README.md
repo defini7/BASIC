@@ -1,13 +1,11 @@
 # BASIC
 
-# !!! WARNING !!! WIP !!!
-At some stage it might break
+## Features
 
-# Features
 1) Variables
 ```basic
 10 LET a = "Hi, mom!"
-20 LET b = 69
+20 b = 69
 ```
 
 2) PRINT
@@ -29,5 +27,36 @@ At some stage it might break
 30 NEXT
 ```
 
-...\
-Too tired to write more, I'll do it later. 
+5) IF
+```basic
+10 INPUT guess
+20 IF guess == "John" THEN PRINT "yes" ELSE PRINT "no"
+```
+
+6) Other statements
+- CLS
+- GOTO \<line>
+- SLEEP \<milliseconds>
+
+7) Math functions
+- SIN \<radians>
+- COS \<radians>
+- TAN \<radians>
+- ARCSIN \<sin>
+- ARCCOS \<cos>
+- ARCTAN \<tan>
+- LOG \<arg> - 10'th base log
+- EXP \<arg>
+- ABS \<arg>
+- SIGN \<arg>
+- INT \<arg> - truncates \<arg>
+
+## To Do
+
+1) Subroutines
+2) NEXT <arg> jumps to the specified FOR loop
+3) Arrays
+
+## References
+
+1) [WebMSX](https://webmsx.org/) - online MSX Basic emulator

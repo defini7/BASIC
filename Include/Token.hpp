@@ -4,9 +4,8 @@
 
 namespace def
 {
-	class Token
+    struct Token
 	{
-	public:
 		enum class Type
 		{
 			None,
@@ -49,20 +48,19 @@ namespace def
 			Keyword_Abs,
 			Keyword_Sign,
 			Keyword_Int,
-			Keyword_Random,
+            Keyword_Random,
 
 			Keyword_List,
 			Keyword_Run,
 			Keyword_New
 		};
 
-	public:
 		Token() = default;
 		Token(Type type, const std::string_view value = "");
 
+        // TODO: Remove at release mode
 		std::string ToString() const;
 
-	public:
 		Type type = Type::None;
 		std::string value;
 

@@ -1,7 +1,7 @@
 ﻿#include <iostream>
 #include <map>
 
-#include "../Include/Interpreter.hpp"
+#include "Include/Interpreter.hpp"
 
 int main()
 {

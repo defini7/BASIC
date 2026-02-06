@@ -1,7 +1,6 @@
-#include "../Include/Interpreter.hpp"
+#include "Include/Interpreter.hpp"
 
 #include <iostream>
-#include <sstream>
 #include <thread>
 #include <chrono>
 
@@ -63,7 +62,7 @@ namespace def
 			case Token::Type::Keyword_Abs:
 			case Token::Type::Keyword_Sign:
 			case Token::Type::Keyword_Int:
-			case Token::Type::Keyword_Random:
+            case Token::Type::Keyword_Random:
 				holding.push_back(*token);
 				break;
 
@@ -281,7 +280,7 @@ namespace def
 						case Operator::Type::Assign:
 						{
 							if (!std::holds_alternative<Symbol>(arguments[1]))
-								throw InterpreterException("Can't create a variable with an invalid name");
+                                throw InterpreterException("Can't create variable with invalid name");
 
 							m_Variables.Set(
 								std::get<Symbol>(arguments[1]).value,
@@ -390,9 +389,9 @@ namespace def
 		m_NextLine = -1;
 		m_EndIter = tokens.end();
 
-		bool newStmt = true;
+        bool newStmt = true;
 
-	#define NEW_STMT if (!newStmt) throw InterpreterException("Expected : before new statement")
+    #define NEW_STMT if (!newStmt) throw InterpreterException("Expected : before new statement")
 
 		m_Token = tokens.begin() + m_LineOffset;
 
@@ -400,14 +399,14 @@ namespace def
 		{
 			switch (m_Token->type)
 			{
-			case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
-			case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
-			case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
-			case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
+            case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
+            case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
+            case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
+            case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
 			case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
 			case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
-			case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
-			case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
+            case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
+            case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
 			
 			case Token::Type::Keyword_For:
 			{
@@ -428,7 +427,7 @@ namespace def
 			{
 				NEW_STMT;
 				HandleNext();
-				newStmt = false;
+                newStmt = false;
 
 				if (m_NextLine != -1)
 				{
@@ -439,17 +438,17 @@ namespace def
 			}
 			break;
 
-			case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
+            case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
 
 			default:
 			{
 				if (m_Token->type == Token::Type::Colon)
-				{
-					newStmt = true;
+                {
+                    newStmt = true;
 					++m_Token;
-				}
-				else
-					newStmt = false;
+                }
+                else
+                    newStmt = false;
 
 				auto [_, end] = ParseExpression(m_Token);
 
@@ -743,6 +742,7 @@ namespace def
 		m_ForStack.push_back(node);
 	}
 
+    // NEXT <var>
 	void Interpreter::HandleNext()
 	{
 		// NEXT
@@ -751,13 +751,26 @@ namespace def
 		if (m_ForStack.empty())
 			throw InterpreterException("NEXT without FOR");
 
-		ForNode& node = m_ForStack.back();
+        ForNode& node = m_ForStack.back();
+
+        // <var>
+        if (m_Token != m_EndIter && m_Token->type == Token::Type::Symbol)
+        {
+            // TODO: Add ability to jump to FOR loop with specified var name
+
+            if (m_Token->value != node.varName)
+                throw InterpreterException("<var> in NEXT <var> statement isn't same as var name of inner FOR");
+
+            ++m_Token;
+        }
 
 		node.startValue += node.step;
 		m_Variables.Set(node.varName, Numeric{ node.startValue });
 
 		if (node.startValue <= node.endValue)
 			m_NextLine = node.line;
+        else
+            m_ForStack.pop_back();
 	}
 
 	// SLEEP <arg>
@@ -774,9 +787,9 @@ namespace def
 			int secs = std::get<Numeric>(res).value;
 
 			if (secs < 0)
-				throw InterpreterException("Can't SLEEP < 0 seconds");
+                throw InterpreterException("Can't SLEEP < 0 milliseconds");
 
-			std::this_thread::sleep_for(std::chrono::seconds(secs));
+            std::this_thread::sleep_for(std::chrono::milliseconds(secs));
 		}
 	}
 }

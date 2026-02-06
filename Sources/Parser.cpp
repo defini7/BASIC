@@ -1,4 +1,4 @@
-#include "../Include/Parser.hpp"
+#include "Include/Parser.hpp"
 
 namespace def
 {
@@ -246,7 +246,7 @@ namespace def
 						Keyword("abs", Abs);
 						Keyword("sgn", Sign);
 						Keyword("int", Int);
-						Keyword("rnd", Random);
+                        Keyword("rnd", Random);
 						Keyword("list", List);
 						Keyword("run", Run);
 						Keyword("new", New);

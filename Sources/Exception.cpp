@@ -1,4 +1,4 @@
-#include "../Include/Exception.hpp"
+#include "Include/Exception.hpp"
 
 namespace def
 {
