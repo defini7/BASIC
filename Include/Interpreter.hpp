@@ -27,6 +27,13 @@ namespace def
 	class Interpreter
 	{
 	public:
+        enum Result
+        {
+            Result_Undefined = -3,
+            Result_Terminate = -2,
+            Result_NextLine = -1
+        };
+
 		Interpreter() = default;
 
 	public:
@@ -46,6 +53,8 @@ namespace def
 		void HandleFor();
 		void HandleNext();
 		void HandleSleep();
+        void HandleGoSub();
+        void HandleReturn();
 
 	private:
 		VarStorage m_Variables;
@@ -58,7 +67,10 @@ namespace def
 		std::deque<ForNode> m_ForStack;
 		std::deque<ForNode> m_IfStack;
 
-		bool m_SkipElse = true;
+        bool m_SkipElse = true;
+
+        int m_ReturnLine = Result_Undefined;
+        int m_ReturnPosInLine = Result_Undefined;
 
 	};
 }

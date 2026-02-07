@@ -49,10 +49,13 @@ namespace def
 			Keyword_Sign,
 			Keyword_Int,
             Keyword_Random,
+            Keyword_End,
+            Keyword_GoSub,
+            Keyword_Return,
 
 			Keyword_List,
 			Keyword_Run,
-			Keyword_New
+            Keyword_New
 		};
 
 		Token() = default;

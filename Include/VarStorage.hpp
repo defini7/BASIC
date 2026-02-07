@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 #include <optional>
+#include <numeric>
 
 namespace def
 {

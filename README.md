@@ -53,9 +53,8 @@
 
 ## To Do
 
-1) Subroutines
-2) NEXT <arg> jumps to the specified FOR loop
-3) Arrays
+1) NEXT <arg> jumps to the specified FOR loop
+2) Arrays
 
 ## References
 

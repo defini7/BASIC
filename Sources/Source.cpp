@@ -38,10 +38,12 @@ int main()
 						{
 							int nextLine = interpreter.Execute(line->second, line->first);
 
-							if (nextLine == -1)
-								line++;
-							else
-								line = programm.find(nextLine);
+                            if (nextLine == def::Interpreter::Result_Terminate)
+                                line = programm.end();
+                            else if (nextLine == def::Interpreter::Result_NextLine)
+                                line++;
+                            else
+                                line = programm.find(nextLine);
 						}
 					}
 				}
@@ -76,9 +78,6 @@ int main()
 					interpreter.Execute(tokens);
 				}
 			}
-
-			/*for (const auto& token : tokens)
-				std::cout << token.ToString() << std::endl;*/
 
 			if (line != -1)
 				programm[line] = tokens;

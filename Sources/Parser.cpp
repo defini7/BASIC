@@ -247,9 +247,12 @@ namespace def
 						Keyword("sgn", Sign);
 						Keyword("int", Int);
                         Keyword("rnd", Random);
+                        Keyword("end", End);
 						Keyword("list", List);
 						Keyword("run", Run);
 						Keyword("new", New);
+                        Keyword("gosub", GoSub);
+                        Keyword("return", Return);
 
 						if (currentChar == input.end())
 							goto complete_token;

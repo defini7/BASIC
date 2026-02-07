@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cmath>
 
 #define REAL_SIGN(v) (Real)((0.0l < v) - (v < 0.0l))
 
@@ -63,6 +64,7 @@ namespace def
 			case Token::Type::Keyword_Sign:
 			case Token::Type::Keyword_Int:
             case Token::Type::Keyword_Random:
+            case Token::Type::Keyword_End:
 				holding.push_back(*token);
 				break;
 
@@ -380,13 +382,13 @@ namespace def
 
 	int Interpreter::Execute(const std::vector<Token>& tokens, int line)
 	{
-		if (m_LineOffset >= tokens.size())
+        if (m_LineOffset >= (int)tokens.size())
 		{
 			m_LineOffset = 0;
-			return -1;
+            return Result_NextLine;
 		}
 
-		m_NextLine = -1;
+        m_NextLine = Result_NextLine;
 		m_EndIter = tokens.end();
 
         bool newStmt = true;
@@ -439,6 +441,19 @@ namespace def
 			break;
 
             case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
+            case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; goto out1;
+            case Token::Type::Keyword_GoSub:
+            {
+                NEW_STMT;
+                HandleGoSub();
+
+                m_ReturnLine = line;
+                m_ReturnPosInLine = std::distance(tokens.begin(), m_Token);
+
+                goto out1;
+            }
+
+            case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); goto out1;
 
 			default:
 			{
@@ -458,8 +473,6 @@ namespace def
 					m_LineOffset = std::distance(tokens.begin(), m_Token);
 					goto out1;
 				}
-
-				m_Token = end;
 			}
 
 			}
@@ -791,5 +804,43 @@ namespace def
 
             std::this_thread::sleep_for(std::chrono::milliseconds(secs));
 		}
+        else
+        {
+            // TODO: Error
+        }
 	}
+
+    // GOSUB <line>
+    void Interpreter::HandleGoSub()
+    {
+        // GOSUB
+        ++m_Token;
+
+        // <line>
+        auto [res, end] = ParseExpression(m_Token);
+
+        if (!std::holds_alternative<Numeric>(res))
+            throw InterpreterException("Provide a line number: GOSUB <line>");
+
+        int line = std::get<Numeric>(res).value;
+
+        if (line < 0)
+            throw InterpreterException("Provide a line number > 0: GOSUB <line>");
+
+        m_Token = end;
+        m_NextLine = line;
+    }
+
+    // RETURN
+    void Interpreter::HandleReturn()
+    {
+        if (m_ReturnLine == Result_Undefined)
+            throw InterpreterException("RETURN without GOSUB");
+
+        m_NextLine = m_ReturnLine;
+        m_LineOffset = m_ReturnPosInLine;
+
+        m_ReturnLine = Result_Undefined;
+        m_ReturnPosInLine = Result_Undefined;
+    }
 }
