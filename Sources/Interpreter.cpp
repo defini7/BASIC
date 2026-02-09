@@ -47,6 +47,8 @@ namespace def
 			case Token::Type::Keyword_Step:
 			case Token::Type::Keyword_Next:
 			case Token::Type::Keyword_Sleep:
+            case Token::Type::Keyword_GoSub:
+            case Token::Type::Keyword_Return:
 			case Token::Type::Semicolon:
 			case Token::Type::Colon:
 				goto out;
@@ -65,6 +67,7 @@ namespace def
 			case Token::Type::Keyword_Int:
             case Token::Type::Keyword_Random:
             case Token::Type::Keyword_End:
+            case Token::Type::Keyword_Val:
 				holding.push_back(*token);
 				break;
 
@@ -96,11 +99,28 @@ namespace def
 
 				// Drain the stack out to the output stack until there's nothing to take or
 				// the precedence of the current token is less than the precedence of the top-stack token
-				while (!holding.empty() && holding.back().type != Token::Type::Parenthesis_Open && op.precedence <= Parser::s_Operators[holding.back().value].precedence)
-				{
-					output.push_back(holding.back());
-					holding.pop_back();
-				}
+                while (!holding.empty())
+                {
+                    Token tok = holding.back();
+
+                    // If top is a function token, it has highest precedence
+                    if (tok.IsFunction())
+                    {
+                        output.push_back(tok);
+                        holding.pop_back();
+                        continue;
+                    }
+
+                    // For regular operators, check precedence
+                    if (tok.type != Token::Type::Parenthesis_Open &&
+                        op.precedence <= Parser::s_Operators[tok.value].precedence)
+                    {
+                        output.push_back(tok);
+                        holding.pop_back();
+                    }
+                    else
+                        break;
+                }
 
 				// only then append current token to the holding stack
 				holding.push_back(tok);
@@ -122,6 +142,14 @@ namespace def
 
 				// And remove the parenthesis by itself
 				holding.pop_back();
+
+                // If the token before the open parenthesis was a function,
+                // add it to the output now
+                if (!holding.empty() && holding.back().IsFunction())
+                {
+                    output.push_back(holding.back());
+                    holding.pop_back();
+                }
 			}
 			break;
 
@@ -300,10 +328,11 @@ namespace def
 
 							switch (op.type)
 							{
-							case Operator::Type::Subtraction:    object = Numeric{ lhs - rhs };  break;
-							case Operator::Type::Addition:       object = Numeric{ lhs + rhs };  break;
-							case Operator::Type::Multiplication: object = Numeric{ lhs * rhs };  break;
-							case Operator::Type::Division:       object = Numeric{ lhs / rhs };  break;
+                            case Operator::Type::Subtraction:    object = Numeric{ lhs - rhs };     break;
+                            case Operator::Type::Addition:       object = Numeric{ lhs + rhs };     break;
+                            case Operator::Type::Multiplication: object = Numeric{ lhs * rhs };     break;
+                            case Operator::Type::Division:       object = Numeric{ lhs / rhs };     break;
+                            case Operator::Type::Power:          object = Numeric{ pow(lhs, rhs) }; break;
 							}
 						}
 
@@ -353,6 +382,18 @@ namespace def
 			FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
 			FUNC(REAL_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
 			FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
+
+            case Token::Type::Keyword_Val:
+            {
+                if (solving.empty())
+                    throw InterpreterException("Not enough arguments: VAL <arg>");
+
+                std::string value = UnwrapValue(String, solving.back(), "Argument must be string: VAL <arg>");
+
+                solving.pop_back();
+                solving.push_back(Numeric { std::stold(value) });
+            }
+            break;
 
 			case Token::Type::Keyword_Random:
 				solving.push_back(Numeric{ (Real)rand() / (Real)RAND_MAX });
@@ -496,19 +537,20 @@ namespace def
 			// <?expr>
 			auto [res, end] = ParseExpression(m_Token);
 
-			if (m_Token == end)
-				std::cout << std::endl;
-			else
-			{
-				m_Token = end;
+            if (m_Token != end)
+            {
+                std::visit([](const auto& obj)
+                    {
+                        std::cout << obj.value;
+                    }, res);
 
-				std::visit([](const auto& obj)
-					{
-						std::cout << obj.value;
-					}, res);
-			}
+                m_Token = end;
+            }
 		}
 		while (m_Token != m_EndIter && m_Token->type == Token::Type::Semicolon);
+
+        if (std::prev(m_Token)->type != Token::Type::Semicolon)
+            std::cout << std::endl;
 	}
 
 	// INPUT <?question>; <arg>
@@ -529,19 +571,20 @@ namespace def
 				std::cout << std::get<String>(expr).value;
 
 			// <arg>
-			std::tie(expr, end) = ParseExpression(end);
-		}
+            if (end->type != Token::Type::Symbol)
+                throw InterpreterException("Expected variable name: INPUT <?question>; <arg>");
+        }
 
 		m_Token = end;
 
-		if (std::holds_alternative<Symbol>(expr))
+        if (end->type == Token::Type::Symbol)
 		{
-			std::string name = std::get<Symbol>(expr).value;
-
 			std::string line;
 			std::getline(std::cin, line);
 
-			m_Variables.Set(name, String{ line });
+            m_Variables.Set(m_Token->value, String{ line });
+
+            ++m_Token;
 		}
 	}
 
@@ -764,18 +807,22 @@ namespace def
 		if (m_ForStack.empty())
 			throw InterpreterException("NEXT without FOR");
 
-        ForNode& node = m_ForStack.back();
-
         // <var>
         if (m_Token != m_EndIter && m_Token->type == Token::Type::Symbol)
         {
-            // TODO: Add ability to jump to FOR loop with specified var name
+            // While FOR on top of stack doesn't have variable with specified name
+            while (m_ForStack.back().varName != m_Token->value)
+            {
+                m_ForStack.pop_back();
 
-            if (m_Token->value != node.varName)
-                throw InterpreterException("<var> in NEXT <var> statement isn't same as var name of inner FOR");
+                if (m_ForStack.empty())
+                    throw InterpreterException("Can't find FOR loop with \"" + m_Token->value + "\" var name");
+            }
 
             ++m_Token;
         }
+
+        ForNode& node = m_ForStack.back();
 
 		node.startValue += node.step;
 		m_Variables.Set(node.varName, Numeric{ node.startValue });
@@ -797,17 +844,19 @@ namespace def
 
 		if (std::holds_alternative<Numeric>(res))
 		{
-			int secs = std::get<Numeric>(res).value;
+            int millis = std::get<Numeric>(res).value;
 
-			if (secs < 0)
+            if (millis < 0)
                 throw InterpreterException("Can't SLEEP < 0 milliseconds");
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(secs));
+            std::this_thread::sleep_for(std::chrono::milliseconds(millis));
 		}
         else
         {
             // TODO: Error
         }
+
+        m_Token = end;
 	}
 
     // GOSUB <line>

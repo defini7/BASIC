@@ -4,24 +4,24 @@
 
 namespace def
 {
-	struct Exception : std::exception
-	{
-		Exception(const std::string& message);
+    struct Exception : std::exception
+    {
+        Exception(std::string_view message);
 
-		const char* what() const noexcept override;
+        const char* what() const noexcept override;
 
-	private:
-		std::string m_Message;
+    private:
+        std::string m_Message;
 
-	};
+    };
 
-	struct ParserException : Exception
-	{
-		ParserException(const std::string& message);
-	};
+    struct ParserException : Exception
+    {
+        ParserException(std::string_view message);
+    };
 
-	struct InterpreterException : Exception
-	{
-		InterpreterException(const std::string& message);
-	};
+    struct InterpreterException : Exception
+    {
+        InterpreterException(std::string_view message);
+    };
 }

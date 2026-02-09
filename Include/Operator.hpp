@@ -20,7 +20,8 @@ namespace def
 			Greater,
 			LessEquals,
 			GreaterEquals,
-			Assign
+            Assign,
+            Power
 		};
 
 		Type type;

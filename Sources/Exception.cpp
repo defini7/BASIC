@@ -2,7 +2,7 @@
 
 namespace def
 {
-	Exception::Exception(const std::string& message)
+    Exception::Exception(std::string_view message)
 	{
 		m_Message = message;
 	}
@@ -12,12 +12,12 @@ namespace def
 		return m_Message.c_str();
 	}
 
-	ParserException::ParserException(const std::string& message) : Exception("[Parse Error] " + message)
+    ParserException::ParserException(std::string_view message) : Exception("[Parse Error] " + message)
 	{
 
 	}
 
-	InterpreterException::InterpreterException(const std::string& message) : Exception("[Interpret Error] " + message)
+    InterpreterException::InterpreterException(std::string_view message) : Exception("[Interpret Error] " + message)
 	{
 
 	}

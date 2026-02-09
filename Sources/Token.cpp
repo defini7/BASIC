@@ -23,7 +23,6 @@ namespace def
 		case Type::Operator:		       tag = "[Operator            ] "; break;
 		case Type::Parenthesis_Open:       tag = "[Parenthesis, Open   ] "; break;
 		case Type::Parenthesis_Close:      tag = "[Parenthesis, Close  ] "; break;
-
 		case Type::Keyword_Print:		   tag = "[Keyword, Print      ] "; break;
 		case Type::Keyword_Input:		   tag = "[Keyword, Input      ] "; break;
 		case Type::Keyword_Cls:            tag = "[Keyword, Cls        ] "; break;
@@ -55,4 +54,29 @@ namespace def
 
 		return tag + value;
 	}
+
+    bool Token::IsFunction() const
+    {
+        switch (type)
+        {
+        case Token::Type::Keyword_Sin:
+        case Token::Type::Keyword_Cos:
+        case Token::Type::Keyword_Tan:
+        case Token::Type::Keyword_ArcSin:
+        case Token::Type::Keyword_ArcCos:
+        case Token::Type::Keyword_ArcTan:
+        case Token::Type::Keyword_Sqrt:
+        case Token::Type::Keyword_Log:
+        case Token::Type::Keyword_Exp:
+        case Token::Type::Keyword_Abs:
+        case Token::Type::Keyword_Sign:
+        case Token::Type::Keyword_Int:
+        case Token::Type::Keyword_Random:
+        case Token::Type::Keyword_Val:
+            return true;
+
+        default:
+            return false;
+        }
+    }
 }

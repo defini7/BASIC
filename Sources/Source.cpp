@@ -71,7 +71,12 @@ int main()
 					}
 				}
 				else if (tokens[0].type == def::Token::Type::Keyword_New)
-					programm.clear();
+                {
+                    if (tokens.size() > 1)
+                        std::cerr << "Syntax error" << std::endl;
+                    else
+                        programm.clear();
+                }
 				else
 				{
 					// Not a CMD command so just execute the line and don't save it anywhere
@@ -79,7 +84,9 @@ int main()
 				}
 			}
 
-			if (line != -1)
+            if (line == -1)
+                std::cout << "Ok" << std::endl;
+            else
 				programm[line] = tokens;
 		}
 		catch (const def::ParserException& e)

@@ -248,11 +248,12 @@ namespace def
 						Keyword("int", Int);
                         Keyword("rnd", Random);
                         Keyword("end", End);
+                        Keyword("gosub", GoSub);
+                        Keyword("return", Return);
+                        Keyword("val", Val);
 						Keyword("list", List);
 						Keyword("run", Run);
 						Keyword("new", New);
-                        Keyword("gosub", GoSub);
-                        Keyword("return", Return);
 
 						if (currentChar == input.end())
 							goto complete_token;
@@ -317,6 +318,7 @@ namespace def
 		{"+", { Operator::Type::Addition, 2, 2 } },
 		{"*", { Operator::Type::Multiplication, 3, 2 } },
 		{"/", { Operator::Type::Division, 3, 2 } },
+        {"^", { Operator::Type::Power, 4, 2 } },
 
 		// Unary operators (in that way they are easier to handle)
 		{"u-", { Operator::Type::Subtraction, Operator::MAX_PRECEDENCE, 1 } },

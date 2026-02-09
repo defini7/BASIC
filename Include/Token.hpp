@@ -50,6 +50,7 @@ namespace def
 			Keyword_Int,
             Keyword_Random,
             Keyword_End,
+            Keyword_Val,
             Keyword_GoSub,
             Keyword_Return,
 
@@ -61,8 +62,8 @@ namespace def
 		Token() = default;
 		Token(Type type, const std::string_view value = "");
 
-        // TODO: Remove at release mode
 		std::string ToString() const;
+        bool IsFunction() const;
 
 		Type type = Type::None;
 		std::string value;
