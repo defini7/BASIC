@@ -1,12 +1,16 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <sstream>
+
+#include "Token.hpp"
 
 namespace def
 {
     struct Exception : std::exception
     {
-        Exception(std::string_view message);
+        Exception(const std::string& line, int pos, const std::string& message);
 
         const char* what() const noexcept override;
 
@@ -15,13 +19,12 @@ namespace def
 
     };
 
-    struct ParserException : Exception
+    struct Exception_Iter
     {
-        ParserException(std::string_view message);
-    };
+        Exception_Iter(Token::Iter iter, const std::string& message);
 
-    struct InterpreterException : Exception
-    {
-        InterpreterException(std::string_view message);
+        Token::Iter iterator;
+        std::string message;
+
     };
 }

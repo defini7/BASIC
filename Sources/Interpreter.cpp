@@ -10,7 +10,7 @@
 namespace def
 {
 	// Returns result of expression and position of next token after end of expression
-	std::pair<Object, TokenIter> Interpreter::ParseExpression(TokenIter iter)
+    std::pair<Object, Token::Iter> Interpreter::ParseExpression(Token::Iter iter)
 	{
 		// Using Shunting yard algorithm
 
@@ -185,7 +185,7 @@ namespace def
 					if (!std::holds_alternative<T>(value))
 					{
 						// ... but it doesn't have type that we want
-						throw InterpreterException(error);
+                        throw Exception_Iter(iter, error);
 					}
 
 					// ... and it's of the right type so return it
@@ -193,11 +193,11 @@ namespace def
 				}
 
 				// Couldn't find the variable so assume it was an invalid symbol
-				throw InterpreterException("Unexpected symbol: " + name);
+                throw Exception_Iter(iter, "Unexpected symbol: " + name);
 			}
 
 			if (!std::holds_alternative<T>(obj))
-				throw InterpreterException(error);
+                throw Exception_Iter(iter, error);
 
 			return std::get<T>(obj).value;
 		};
@@ -228,7 +228,7 @@ namespace def
 
 				// Save all operator arguments if there are enough on the stack
 				if (solving.size() < op.arguments)
-					throw InterpreterException("Not enough arguments for the operator: " + token.value);
+                    throw Exception_Iter(iter, "Not enough arguments for the operator: " + token.value);
 
 				for (auto& arg : arguments)
 				{
@@ -264,7 +264,7 @@ namespace def
 						const std::string lhs = UnwrapValue(String, arguments[1], "");
 
 						if (op.type != Operator::Type::Addition)
-							throw InterpreterException("Can perform only concatenation (+) with strings: " + lhs);
+                            throw Exception_Iter(iter, "Can perform only concatenation (+) with strings: " + lhs);
 
 						const std::string rhs = UnwrapValue(String, arguments[0], "Can only concatenate string with another string: " + lhs);
 
@@ -294,7 +294,7 @@ namespace def
 							\
 								if (CheckTypes.operator()<Numeric>("number")) {} \
 								else if (CheckTypes.operator()<String>("string")) {} \
-								else throw InterpreterException("Can't compare 2 values"); \
+                                else throw Exception_Iter(iter, "Can't compare 2 values"); \
 							} \
 							break;
 
@@ -310,7 +310,7 @@ namespace def
 						case Operator::Type::Assign:
 						{
 							if (!std::holds_alternative<Symbol>(arguments[1]))
-                                throw InterpreterException("Can't create variable with invalid name");
+                                throw Exception_Iter(iter, "Can't create variable with invalid name");
 
 							m_Variables.Set(
 								std::get<Symbol>(arguments[1]).value,
@@ -354,15 +354,15 @@ namespace def
 			case Token::Type::Keyword_##token: \
 			{ \
 				if (solving.empty()) \
-					throw InterpreterException("Not enough arguments: "#signature" <arg>"); \
+                    throw Exception_Iter(iter, "Not enough arguments: "#signature" <arg>"); \
 			\
 				if (!std::holds_alternative<Numeric>(solving.back())) \
-					throw InterpreterException("Argument must be numeric: "#signature" <arg>"); \
+                    throw Exception_Iter(iter, "Argument must be numeric: "#signature" <arg>"); \
 			\
 				Real value = std::get<Numeric>(solving.back()).value; \
 			\
 				if (value < bottom || value > top) \
-					throw InterpreterException("Argument must be within the range: [" + std::to_string(bottom) + ", " + std::to_string(top) + "]"); \
+                    throw Exception_Iter(iter, "Argument must be within the range: [" + std::to_string(bottom) + ", " + std::to_string(top) + "]"); \
 			\
 				solving.pop_back(); \
 				solving.push_back(Numeric{ func(value) }); \
@@ -386,7 +386,7 @@ namespace def
             case Token::Type::Keyword_Val:
             {
                 if (solving.empty())
-                    throw InterpreterException("Not enough arguments: VAL <arg>");
+                    throw std::runtime_error("Not enough arguments: VAL <arg>");
 
                 std::string value = UnwrapValue(String, solving.back(), "Argument must be string: VAL <arg>");
 
@@ -434,89 +434,98 @@ namespace def
 
         bool newStmt = true;
 
-    #define NEW_STMT if (!newStmt) throw InterpreterException("Expected : before new statement")
+    #define NEW_STMT if (!newStmt) throw Exception_Iter(m_Token, "Expected : before new statement")
 
 		m_Token = tokens.begin() + m_LineOffset;
 
 		while (m_Token != tokens.end())
 		{
-			switch (m_Token->type)
-			{
-            case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
-            case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
-            case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
-            case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
-			case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
-			case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
-            case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
-            case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
-			
-			case Token::Type::Keyword_For:
-			{
-				NEW_STMT;
-				HandleFor();
-				newStmt = false;
-
-				ForNode& node = m_ForStack.back();
-
-				node.posInLine = std::distance(tokens.begin(), m_Token);
-				node.line = line;
-
-				m_LineOffset = node.posInLine + 1;
-			}
-			break;
-
-			case Token::Type::Keyword_Next:
-			{
-				NEW_STMT;
-				HandleNext();
-                newStmt = false;
-
-				if (m_NextLine != -1)
-				{
-					ForNode& node = m_ForStack.back();
-					m_LineOffset = node.posInLine + 1;
-					goto out1;
-				}
-			}
-			break;
-
-            case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
-            case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; goto out1;
-            case Token::Type::Keyword_GoSub:
+            try
             {
-                NEW_STMT;
-                HandleGoSub();
-
-                m_ReturnLine = line;
-                m_ReturnPosInLine = std::distance(tokens.begin(), m_Token);
-
-                goto out1;
-            }
-
-            case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); goto out1;
-
-			default:
-			{
-				if (m_Token->type == Token::Type::Colon)
+                switch (m_Token->type)
                 {
-                    newStmt = true;
-					++m_Token;
-                }
-                else
+                case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
+                case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
+                case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
+                case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
+                case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
+                case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
+                case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
+                case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
+
+                case Token::Type::Keyword_For:
+                {
+                    NEW_STMT;
+                    HandleFor();
                     newStmt = false;
 
-				auto [_, end] = ParseExpression(m_Token);
+                    ForNode& node = m_ForStack.back();
 
-				if (m_Token == end)
-				{
-					m_NextLine = line;
-					m_LineOffset = std::distance(tokens.begin(), m_Token);
-					goto out1;
-				}
-			}
+                    node.posInLine = std::distance(tokens.begin(), m_Token);
+                    node.line = line;
 
-			}
+                    m_LineOffset = node.posInLine + 1;
+                }
+                break;
+
+                case Token::Type::Keyword_Next:
+                {
+                    NEW_STMT;
+                    HandleNext();
+                    newStmt = false;
+
+                    if (m_NextLine != -1)
+                    {
+                        ForNode& node = m_ForStack.back();
+                        m_LineOffset = node.posInLine + 1;
+                        goto out1;
+                    }
+                }
+                break;
+
+                case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
+                case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; goto out1;
+                case Token::Type::Keyword_GoSub:
+                {
+                    NEW_STMT;
+                    HandleGoSub();
+
+                    m_ReturnLine = line;
+                    m_ReturnPosInLine = std::distance(tokens.begin(), m_Token);
+
+                    goto out1;
+                }
+
+                case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); goto out1;
+
+                default:
+                {
+                    if (m_Token->type == Token::Type::Colon)
+                    {
+                        newStmt = true;
+                        ++m_Token;
+                    }
+                    else
+                        newStmt = false;
+
+                    auto [_, end] = ParseExpression(m_Token);
+
+                    if (m_Token == end)
+                    {
+                        m_NextLine = line;
+                        m_LineOffset = std::distance(tokens.begin(), m_Token);
+                        goto out1;
+                    }
+                    else
+                        ++m_Token;
+                }
+
+                }
+            }
+            catch (const Exception_Iter& e)
+            {
+                throw e;
+            }
 		}
 
 		m_LineOffset = 0;
@@ -534,17 +543,24 @@ namespace def
 			// PRINT / ;
 			++m_Token;
 
-			// <?expr>
-			auto [res, end] = ParseExpression(m_Token);
-
-            if (m_Token != end)
+            try
             {
-                std::visit([](const auto& obj)
-                    {
-                        std::cout << obj.value;
-                    }, res);
+                // <?expr>
+                auto [res, end] = ParseExpression(m_Token);
 
-                m_Token = end;
+                if (m_Token != end)
+                {
+                    std::visit([](const auto& obj)
+                        {
+                            std::cout << obj.value;
+                        }, res);
+
+                    m_Token = end;
+                }
+            }
+            catch (const Exception_Iter& e)
+            {
+                throw e;
             }
 		}
 		while (m_Token != m_EndIter && m_Token->type == Token::Type::Semicolon);
@@ -559,33 +575,38 @@ namespace def
 		// INPUT
 		++m_Token;
 
-		// <question> / <arg>
-		auto [expr, end] = ParseExpression(m_Token);
+        try
+        {
+            // <question> / <arg>
+            auto [expr, end] = ParseExpression(m_Token);
 
-		if (end != m_EndIter && end->type == Token::Type::Semicolon)
-		{
-			// ;
-			++end;
+            if (end != m_EndIter && end->type == Token::Type::Semicolon)
+            {
+                // ;
+                ++end;
 
-			if (std::holds_alternative<String>(expr))
-				std::cout << std::get<String>(expr).value;
+                if (std::holds_alternative<String>(expr))
+                    std::cout << std::get<String>(expr).value;
 
-			// <arg>
-            if (end->type != Token::Type::Symbol)
-                throw InterpreterException("Expected variable name: INPUT <?question>; <arg>");
+                // <arg>
+                if (end->type != Token::Type::Symbol)
+                    throw std::runtime_error("Expected variable name: INPUT <?question>; <arg>");
+            }
+
+            if (m_Token->type == Token::Type::Symbol)
+            {
+                std::string line;
+                std::getline(std::cin >> std::ws, line);
+
+                m_Variables.Set(m_Token->value, String{ line });
+            }
+
+            m_Token = end;
         }
-
-		m_Token = end;
-
-        if (end->type == Token::Type::Symbol)
-		{
-			std::string line;
-			std::getline(std::cin, line);
-
-            m_Variables.Set(m_Token->value, String{ line });
-
-            ++m_Token;
-		}
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 	}
 
 	// CLS
@@ -608,21 +629,27 @@ namespace def
 
 		// <name>
 		if (m_Token->type != Token::Type::Symbol)
-			throw InterpreterException("Expected variable name: LET <name> = <expr>");
+            throw Exception_Iter(m_Token, "Expected variable name: LET <name> = <expr>");
 
 		std::string name = m_Token->value;
 		++m_Token;
 
 		// =
 		if (m_Token->type != Token::Type::Operator)
-			throw InterpreterException("Expected =: LET <name> = <expr>");
+            throw Exception_Iter(m_Token, "Expected =: LET <name> = <expr>");
 
-		// <expr>
-		auto [res, end] = ParseExpression(m_Token + 1);
+        try
+        {
+            // <expr>
+            auto [res, end] = ParseExpression(m_Token + 1);
 
-		m_Variables.Set(name, res);
-
-		m_Token = end;
+            m_Variables.Set(name, res);
+            m_Token = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 	}
 
 	// GOTO <line>
@@ -631,14 +658,21 @@ namespace def
 		// GOTO
 		++m_Token;
 
-		// <line>
-		auto [res, end] = ParseExpression(m_Token);
+        try
+        {
+            // <line>
+            auto [res, end] = ParseExpression(m_Token);
 
-		if (!std::holds_alternative<Numeric>(res))
-			throw InterpreterException("Expected line number to be numeric: GOTO <line>");
+            if (!std::holds_alternative<Numeric>(res))
+                throw Exception_Iter(std::prev(end), "Expected line number to be numeric: GOTO <line>");
 
-		m_NextLine = (int)std::get<Numeric>(res).value;
-		m_Token = end;
+            m_NextLine = (int)std::get<Numeric>(res).value;
+            m_Token = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 	}
 
 	// IF <expr> THEN <stmt> ELSE <stmt>
@@ -647,53 +681,60 @@ namespace def
 		// IF
 		++m_Token;
 
-		// <expr>
-		auto [res, iter] = ParseExpression(m_Token);
+        try
+        {
+            // <expr>
+            auto [res, iter] = ParseExpression(m_Token);
 
-		if (!std::holds_alternative<Numeric>(res))
-			throw InterpreterException("Expected expression result to be numeric: IF <expr> ...");
+            if (!std::holds_alternative<Numeric>(res))
+                throw Exception_Iter(std::prev(iter), "Expected expression result to be numeric");
 
-		// THEN
-		if (iter->type != Token::Type::Keyword_Then)
-			throw InterpreterException("Expected THEN after IF: IF <expr> THEN ...");
+            // THEN
+            if (iter->type != Token::Type::Keyword_Then)
+                throw Exception_Iter(iter, "Expected THEN");
 
-		++iter;
+            ++iter;
 
-		// if <expr>=0 then move to else block if it exists
-		if (std::get<Numeric>(res).value == 0.0)
-		{
-			int elseBalancer = 0;
+            // if <expr>=0 then move to else block if it exists
+            if (std::get<Numeric>(res).value == 0.0)
+            {
+                int elseBalancer = 0;
 
-			// We need to find ELSE block and execute it
-			m_SkipElse = false;
+                // We need to find ELSE block and execute it
+                m_SkipElse = false;
 
-			// Searching for the corresponding ELSE block
-			while (iter != m_EndIter)
-			{
-				if (iter->type == Token::Type::Keyword_If)
-					++elseBalancer;
+                // Searching for the corresponding ELSE block
+                while (iter != m_EndIter && iter->type != Token::Type::Colon)
+                {
+                    if (iter->type == Token::Type::Keyword_If)
+                        ++elseBalancer;
 
-				if (iter->type == Token::Type::Keyword_Else)
-				{	
-					if (elseBalancer == 0)
-					{
-						// Found corresponding ELSE block so just stop here
-						m_Token = iter + 1;
-						return;
-					}
+                    if (iter->type == Token::Type::Keyword_Else)
+                    {
+                        if (elseBalancer == 0)
+                        {
+                            // Found corresponding ELSE block so just stop here
+                            m_Token = iter + 1;
+                            return;
+                        }
 
-					--elseBalancer;
-				}
-				
-				++iter;
-			}
+                        --elseBalancer;
+                    }
 
-			// No ELSE block
-		}
-		else // <expr> != 0
-			m_SkipElse = true;
+                    ++iter;
+                }
 
-		m_Token = iter;
+                // No ELSE block
+            }
+            else // <expr> != 0
+                m_SkipElse = true;
+
+            m_Token = iter;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 	}
 
 	void Interpreter::HandleElse()
@@ -716,7 +757,6 @@ namespace def
 	void Interpreter::HandleFor()
 	{
 		ForNode node;
-
 		Object res;
 
 		// FOR
@@ -724,51 +764,51 @@ namespace def
 
 		// <var>
 		if (m_Token->type != Token::Type::Symbol)
-			throw InterpreterException("Expected variable name: FOR <var>=...");
+            throw Exception_Iter(m_Token, "Expected variable name");
 
 		node.varName = m_Token->value;
 		++m_Token;
 
 		// =
 		if (m_Token->type != Token::Type::Operator)
-			throw InterpreterException("Expected =: FOR <var>=...");
+            throw Exception_Iter(m_Token, "Expected =");
 
 		++m_Token;
 
-		// <expr>
 		try
 		{
+            // <expr>
 			std::tie(res, m_Token) = ParseExpression(m_Token);
 
 			if (!std::holds_alternative<Numeric>(res))
-				throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> ...");
+                throw Exception_Iter(m_Token, "Expected <expr> result to be numeric");
 
 			node.startValue = std::get<Numeric>(res).value;
-		}
-		catch (InterpreterException& _)
-		{
-			std::cerr << "[Interpreter exception] Expected expression after =: FOR <var>=<expr> ..." << std::endl;
-		}
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 
 		// TO
 		if (m_Token->type != Token::Type::Keyword_To)
-			throw InterpreterException("Expected TO after <expr>: FOR <var>=<expr> TO ...");
+            throw Exception_Iter(m_Token, "Expected TO after <expr>");
 
 		++m_Token;
 
-		// <expr>
 		try
 		{
+            // <expr>
 			std::tie(res, m_Token) = ParseExpression(m_Token);
 
 			if (!std::holds_alternative<Numeric>(res))
-				throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> TO <expr> ...");
+                throw Exception_Iter(m_Token, "Expected <expr> result to be numeric");
 
 			node.endValue = std::get<Numeric>(res).value;
-		}
-		catch (InterpreterException& _)
-		{
-			std::cerr << "[Interpreter exception] Expected expression after TO: FOR <var>=<expr> TO <expr> ..." << std::endl;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
 		}
 
 		// STEP
@@ -782,14 +822,14 @@ namespace def
 				std::tie(res, m_Token) = ParseExpression(m_Token);
 
 				if (!std::holds_alternative<Numeric>(res))
-					throw InterpreterException("Expected <expr> result to be numeric: FOR <var>=<expr> TO <expr> STEP <expr> ...");
+                    throw std::runtime_error("Expected <expr> result to be numeric");
 
 				node.step = std::get<Numeric>(res).value;
-			}
-			catch (InterpreterException& _)
-			{
-				std::cerr << "[Interpreter exception] Expected expression after STEP: FOR <var>=<expr> TO <expr> STEP <expr>" << std::endl;
-			}
+            }
+            catch (const Exception_Iter& e)
+            {
+                throw e;
+            }
 		}
 		else
 			node.step = 1.0;
@@ -800,12 +840,12 @@ namespace def
 
     // NEXT <var>
 	void Interpreter::HandleNext()
-	{
-		// NEXT
-		++m_Token;
-
+	{        
 		if (m_ForStack.empty())
-			throw InterpreterException("NEXT without FOR");
+            throw Exception_Iter(m_Token, "NEXT without FOR");
+
+        // NEXT
+        ++m_Token;
 
         // <var>
         if (m_Token != m_EndIter && m_Token->type == Token::Type::Symbol)
@@ -816,7 +856,7 @@ namespace def
                 m_ForStack.pop_back();
 
                 if (m_ForStack.empty())
-                    throw InterpreterException("Can't find FOR loop with \"" + m_Token->value + "\" var name");
+                    throw Exception_Iter(m_Token, "Can't find FOR loop with specified var name");
             }
 
             ++m_Token;
@@ -839,24 +879,31 @@ namespace def
 		// SLEEP
 		++m_Token;
 
-		// <expr>
-		auto [res, end] = ParseExpression(m_Token);
-
-		if (std::holds_alternative<Numeric>(res))
-		{
-            int millis = std::get<Numeric>(res).value;
-
-            if (millis < 0)
-                throw InterpreterException("Can't SLEEP < 0 milliseconds");
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(millis));
-		}
-        else
+        try
         {
-            // TODO: Error
-        }
+            // <expr>
+            auto [res, end] = ParseExpression(m_Token);
 
-        m_Token = end;
+            if (std::holds_alternative<Numeric>(res))
+            {
+                int millis = std::get<Numeric>(res).value;
+
+                if (millis < 0)
+                    throw Exception_Iter(end, "Can't SLEEP < 0 milliseconds");
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(millis));
+            }
+            else
+            {
+                throw Exception_Iter(end, "Expected milliseconds to be numeric");
+            }
+
+            m_Token = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
 	}
 
     // GOSUB <line>
@@ -865,26 +912,33 @@ namespace def
         // GOSUB
         ++m_Token;
 
-        // <line>
-        auto [res, end] = ParseExpression(m_Token);
+        try
+        {
+            // <line>
+            auto [res, end] = ParseExpression(m_Token);
 
-        if (!std::holds_alternative<Numeric>(res))
-            throw InterpreterException("Provide a line number: GOSUB <line>");
+            if (!std::holds_alternative<Numeric>(res))
+                throw std::runtime_error("Provide a line number");
 
-        int line = std::get<Numeric>(res).value;
+            int line = std::get<Numeric>(res).value;
 
-        if (line < 0)
-            throw InterpreterException("Provide a line number > 0: GOSUB <line>");
+            if (line < 0)
+                throw std::runtime_error("Provide a line number > 0");
 
-        m_Token = end;
-        m_NextLine = line;
+            m_Token = end;
+            m_NextLine = line;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
     }
 
     // RETURN
     void Interpreter::HandleReturn()
     {
         if (m_ReturnLine == Result_Undefined)
-            throw InterpreterException("RETURN without GOSUB");
+            throw Exception_Iter(m_Token, "RETURN without GOSUB");
 
         m_NextLine = m_ReturnLine;
         m_LineOffset = m_ReturnPosInLine;

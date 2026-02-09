@@ -2,23 +2,31 @@
 
 namespace def
 {
-    Exception::Exception(std::string_view message)
+    Exception::Exception(const std::string& line, int pos, const std::string& message)
 	{
-		m_Message = message;
+        std::stringstream ss;
+
+        ss << "| " << line;
+
+        ss << "\n| ";
+
+        for (int i = 0; i < pos; i++)
+            ss << ' ';
+
+        ss << "^\n| ";
+        ss << "Error: " << message << " at " << pos;
+
+        m_Message = ss.str();
 	}
 
 	const char* Exception::what() const noexcept
 	{
-		return m_Message.c_str();
+        return m_Message.c_str();
 	}
 
-    ParserException::ParserException(std::string_view message) : Exception("[Parse Error] " + message)
-	{
+    Exception_Iter::Exception_Iter(Token::Iter iter, const std::string& message)
+        : iterator(iter), message(message)
+    {
 
-	}
-
-    InterpreterException::InterpreterException(std::string_view message) : Exception("[Interpret Error] " + message)
-	{
-
-	}
+    }
 }

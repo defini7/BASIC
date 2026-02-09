@@ -10,8 +10,6 @@
 
 namespace def
 {
-	using TokenIter = std::vector<Token>::const_iterator;
-
 	struct ForNode
 	{
 		std::string varName;
@@ -40,7 +38,7 @@ namespace def
 		int Execute(const std::vector<Token>& tokens, int line = -1);
 
 	private:
-		std::pair<Object, TokenIter> ParseExpression(TokenIter iter);
+        std::pair<Object, Token::Iter> ParseExpression(Token::Iter iter);
 
 	private:
 		void HandlePrint();
@@ -58,11 +56,11 @@ namespace def
 
 	private:
 		VarStorage m_Variables;
-		TokenIter m_EndIter;
+        Token::Iter m_EndIter;
 
 		int m_NextLine;
 		int m_LineOffset = 0;
-		TokenIter m_Token;
+        Token::Iter m_Token;
 
 		std::deque<ForNode> m_ForStack;
 		std::deque<ForNode> m_IfStack;

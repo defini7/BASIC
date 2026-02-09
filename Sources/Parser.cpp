@@ -11,7 +11,7 @@ namespace def
 		}
 	}
 
-	int Parser::Tokenise(std::string_view input, std::vector<Token>& tokens)
+    int Parser::Tokenise(const std::string& input, std::vector<Token>& tokens)
 	{
 		State stateNow = State::NewToken;
 		State stateNext = State::NewToken;
@@ -96,7 +96,7 @@ namespace def
 					StartToken(Token::Type::Semicolon);
 
 				else
-					throw ParserException(std::string("Unexpected character: ") + *currentChar);
+                    throw Exception(input, std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
 
 				currentChar++;
 			}
@@ -129,7 +129,7 @@ namespace def
 							AppendChar(State::Literal_NumericBase2);
 						}
 						else
-							throw ParserException("Unknown prefix for numeric literal");
+                            throw Exception(input, std::distance(input.begin(), currentChar), "Unknown prefix for numeric literal");
 					}
 
 				#undef Prepare
@@ -144,7 +144,7 @@ namespace def
 					else \
 					{ \
 						if (guard::Symbols[*currentChar]) \
-							throw ParserException("Invalid numeric literal or symbol"); \
+                            throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol"); \
 						stateNext = State::CompleteToken; \
 					} \
 				} \
@@ -202,7 +202,7 @@ namespace def
 						if (s_Operators.contains(token.value))
 							stateNext = State::CompleteToken;
 						else
-							throw ParserException("Invalid operator was found: " + token.value);
+                            throw Exception(input, std::distance(input.begin(), currentChar), "Invalid operator was found: " + token.value);
 					}
 				}
 				break;
@@ -286,10 +286,10 @@ namespace def
 			goto parse_keyword;
 
 		if (parenthesesBalancer != 0)
-			throw ParserException("Parentheses were not balanced");
+            throw Exception(input, std::distance(input.begin(), currentChar), "Parentheses were not balanced");
 
 		if (quotesBalancer != 0)
-			throw ParserException("Quotes were not balanced");
+            throw Exception(input, std::distance(input.begin(), currentChar), "Quotes were not balanced");
 
 		// Drain out the last token
 		if (!token.value.empty())
@@ -297,7 +297,7 @@ namespace def
 		
 		// In the original BASIC I guess "2.5 + 2" must be treated as "2 .5 + 2" but for now let's treat it as "2.5 + 2"
 		if (tokens.empty() || tokens.front().type != Token::Type::Literal_NumericBase10 || tokens.front().value.find('.') != std::string::npos)
-			return -1;
+            return -1;
 
 		int line = std::stoi(tokens.front().value);
 		tokens.erase(tokens.begin());

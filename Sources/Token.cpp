@@ -1,4 +1,5 @@
 #include "Include/Token.hpp"
+#include <sstream>
 
 namespace def
 {
@@ -78,5 +79,20 @@ namespace def
         default:
             return false;
         }
+    }
+
+    std::string TokensToString(const std::vector<Token>& tokens)
+    {
+        std::stringstream ss;
+
+        for (const auto& token : tokens)
+        {
+            if (token.type == def::Token::Type::Literal_String)
+                ss << ' ' << '"' << token.value << '"';
+            else
+                ss << ' ' << token.value;
+        }
+
+        return ss.str();
     }
 }

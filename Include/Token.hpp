@@ -1,11 +1,14 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace def
 {
     struct Token
 	{
+        using Iter = std::vector<Token>::const_iterator;
+
 		enum class Type
 		{
 			None,
@@ -68,5 +71,7 @@ namespace def
 		Type type = Type::None;
 		std::string value;
 
-	};
+    };
+
+    std::string TokensToString(const std::vector<Token>& tokens);
 }

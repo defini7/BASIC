@@ -33,7 +33,7 @@ namespace def
 			Symbol
 		};
 
-		int Tokenise(std::string_view input, std::vector<Token>& tokens);
+        int Tokenise(const std::string& input, std::vector<Token>& tokens);
 
 	public:
 		static std::unordered_map<std::string, Operator> s_Operators;
