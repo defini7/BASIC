@@ -1,6 +1,6 @@
 #include "Include/Exception.hpp"
 
-namespace def
+namespace Basic
 {
     Exception::Exception(const std::string& line, int pos, const std::string& message)
 	{

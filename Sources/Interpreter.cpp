@@ -7,7 +7,7 @@
 
 #define REAL_SIGN(v) (Real)((0.0l < v) - (v < 0.0l))
 
-namespace def
+namespace Basic
 {
 	// Returns result of expression and position of next token after end of expression
     std::pair<Object, Token::Iter> Interpreter::ParseExpression(Token::Iter iter)
@@ -20,7 +20,7 @@ namespace def
 		Token prev(Token::Type::None);
 
 		auto token = iter;
-		for (; token != m_EndIter; ++token)
+		for (; token != m_End; ++token)
 		{
 			switch (token->type)
 			{
@@ -94,7 +94,10 @@ namespace def
 					bool notExcluded = std::find(excluded.begin(), excluded.end(), prev.type) == excluded.end();
 
 					if (notExcluded || prev.type == Token::Type::None)
+					{
+						// It is easier to handle unary operators as u+ or u-
 						tok.value = "u" + tok.value;
+					}
 				}
 
 				// Drain the stack out to the output stack until there's nothing to take or
@@ -122,7 +125,7 @@ namespace def
                         break;
                 }
 
-				// only then append current token to the holding stack
+				// ... only then append current token to the holding stack
 				holding.push_back(tok);
 			}
 			break;
@@ -143,8 +146,8 @@ namespace def
 				// And remove the parenthesis by itself
 				holding.pop_back();
 
-                // If the token before the open parenthesis was a function,
-                // add it to the output now
+                // If the token before the open parenthesis was a function
+                // then add it to the output now
                 if (!holding.empty() && holding.back().IsFunction())
                 {
                     output.push_back(holding.back());
@@ -166,43 +169,6 @@ namespace def
 			output.push_back(holding.back());
 			holding.pop_back();
 		}
-
-		auto UnwrapValue = [&]<class T>(const Object& obj, const std::string& error = "")
-		{
-			if (std::holds_alternative<Symbol>(obj))
-			{
-				const std::string& name = std::get<Symbol>(obj).value;
-
-				// Let's check if a variable with the given name exists
-				const auto variable = m_Variables.Get(name);
-
-				if (variable)
-				{
-					// The variable exists...
-
-					const auto value = variable.value().get();
-
-					if (!std::holds_alternative<T>(value))
-					{
-						// ... but it doesn't have type that we want
-                        throw Exception_Iter(iter, error);
-					}
-
-					// ... and it's of the right type so return it
-					return std::get<T>(value).value;
-				}
-
-				// Couldn't find the variable so assume it was an invalid symbol
-                throw Exception_Iter(iter, "Unexpected symbol: " + name);
-			}
-
-			if (!std::holds_alternative<T>(obj))
-                throw Exception_Iter(iter, error);
-
-			return std::get<T>(obj).value;
-		};
-
-	#define UnwrapValue(type, obj, error) UnwrapValue.operator()<type>(obj, error)
 
 		for (const auto& token : output)
 		{
@@ -226,7 +192,7 @@ namespace def
 
 				std::vector<Object> arguments(op.arguments);
 
-				// Save all operator arguments if there are enough on the stack
+				// Save all operator arguments if there is enough of them on the stack
 				if (solving.size() < op.arguments)
                     throw Exception_Iter(iter, "Not enough arguments for the operator: " + token.value);
 
@@ -243,7 +209,7 @@ namespace def
 				case 1:
 				{
 					// Handle unary operators
-					Real number = UnwrapValue(Numeric, arguments[0], "Can't apply unary operator to non-numeric value");
+                    Real number = UnwrapValue<Numeric>(iter, arguments[0], "Can't apply unary operator to non-numeric value");
 
 					switch (op.type)
 					{
@@ -261,12 +227,12 @@ namespace def
 					{
 						// You can concatenate a string with another string
 
-						const std::string lhs = UnwrapValue(String, arguments[1], "");
+                        std::string lhs = UnwrapValue<String>(iter, arguments[1], "");
 
 						if (op.type != Operator::Type::Addition)
                             throw Exception_Iter(iter, "Can perform only concatenation (+) with strings: " + lhs);
 
-						const std::string rhs = UnwrapValue(String, arguments[0], "Can only concatenate string with another string: " + lhs);
+                        std::string rhs = UnwrapValue<String>(iter, arguments[0], "Can only concatenate string with another string: " + lhs);
 
 						object = String{ lhs + rhs };
 					}
@@ -277,8 +243,8 @@ namespace def
 							{ \
 								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
 								{ \
-									const auto lhs = UnwrapValue(T, arguments[1], ""); \
-									const auto rhs = UnwrapValue(T, arguments[0], "Can only compare a " + name + " with another " + name); \
+                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], ""); \
+                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], "Can only compare a " + name + " with another " + name); \
 								\
 									object = Numeric{ (Real)(lhs op rhs) }; \
 									return true; \
@@ -294,7 +260,8 @@ namespace def
 							\
 								if (CheckTypes.operator()<Numeric>("number")) {} \
 								else if (CheckTypes.operator()<String>("string")) {} \
-                                else throw Exception_Iter(iter, "Can't compare 2 values"); \
+                                else \
+									throw Exception_Iter(iter, "Can't compare 2 values"); \
 							} \
 							break;
 
@@ -323,8 +290,8 @@ namespace def
 
 						default:
 						{
-							const auto lhs = UnwrapValue(Numeric, arguments[1], "You must have numeric values to perform arithmetic operations");
-							const auto rhs = UnwrapValue(Numeric, arguments[0], "You must have numeric values to perform arithmetic operations");
+                            const auto lhs = UnwrapValue<Numeric>(iter, arguments[1], "You must have numeric values to perform arithmetic operations");
+                            const auto rhs = UnwrapValue<Numeric>(iter, arguments[0], "You must have numeric values to perform arithmetic operations");
 
 							switch (op.type)
 							{
@@ -350,7 +317,7 @@ namespace def
 			}
 			break;
 
-		#define FUNC(func, signature, token, bottom, top) \
+		#define CASE_FUNC(func, signature, token, bottom, top) \
 			case Token::Type::Keyword_##token: \
 			{ \
 				if (solving.empty()) \
@@ -369,26 +336,26 @@ namespace def
 			} \
 			break;
 			
-			FUNC(sin, SIN, Sin, Numeric::MIN, Numeric::MAX)
-			FUNC(cos, COS, Cos, Numeric::MIN, Numeric::MAX)
-			FUNC(tan, TAN, Tan, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(sin, SIN, Sin, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(cos, COS, Cos, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(tan, TAN, Tan, Numeric::MIN, Numeric::MAX)
 
-			FUNC(asin, ARCSIN, ArcSin, -1.0, 1.0)
-			FUNC(acos, ARCCOS, ArcCos, -1.0, 1.0)
-			FUNC(atan, ARCTAN, ArcTan, -3.145926535 * 0.5, 3.145926535 * 0.5)
+			CASE_FUNC(asin, ARCSIN, ArcSin, -1.0, 1.0)
+			CASE_FUNC(acos, ARCCOS, ArcCos, -1.0, 1.0)
+			CASE_FUNC(atan, ARCTAN, ArcTan, -3.145926535 * 0.5, 3.145926535 * 0.5)
 
-			FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
-			FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
-			FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
-			FUNC(REAL_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
-			FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
+			CASE_FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(REAL_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
 
             case Token::Type::Keyword_Val:
             {
                 if (solving.empty())
-                    throw std::runtime_error("Not enough arguments: VAL <arg>");
+                    throw Exception_Iter(iter, "Not enough arguments: VAL <arg>");
 
-                std::string value = UnwrapValue(String, solving.back(), "Argument must be string: VAL <arg>");
+                std::string value = UnwrapValue<String>(iter, solving.back(), "Argument must be string: VAL <arg>");
 
                 solving.pop_back();
                 solving.push_back(Numeric { std::stold(value) });
@@ -403,13 +370,15 @@ namespace def
 
 		}
 
-	#undef UnwrapValue
-
 		if (solving.empty())
+		{
+			// Nothing has been evaluated
 			return std::make_pair(Object(), token);
+		}
 
 		Object obj = solving.back();
 
+		// Possibly could be a variable name so let's extract a value from it
 		if (std::holds_alternative<Symbol>(obj))
 		{
 			auto value = m_Variables.Get(std::get<Symbol>(obj).value);
@@ -430,19 +399,19 @@ namespace def
 		}
 
         m_NextLine = Result_NextLine;
-		m_EndIter = tokens.end();
+		m_End = tokens.end();
 
-        bool newStmt = true;
+		m_Cursor = tokens.begin() + m_LineOffset;
 
-    #define NEW_STMT if (!newStmt) throw Exception_Iter(m_Token, "Expected : before new statement")
+		bool newStmt = true;
 
-		m_Token = tokens.begin() + m_LineOffset;
+    #define NEW_STMT if (!newStmt) throw Exception_Iter(m_Cursor, "Expected : before new statement")
 
-		while (m_Token != tokens.end())
+		while (m_Cursor != tokens.end())
 		{
             try
             {
-                switch (m_Token->type)
+                switch (m_Cursor->type)
                 {
                 case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
                 case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
@@ -461,7 +430,7 @@ namespace def
 
                     ForNode& node = m_ForStack.back();
 
-                    node.posInLine = std::distance(tokens.begin(), m_Token);
+                    node.posInLine = std::distance(tokens.begin(), m_Cursor);
                     node.line = line;
 
                     m_LineOffset = node.posInLine + 1;
@@ -478,6 +447,7 @@ namespace def
                     {
                         ForNode& node = m_ForStack.back();
                         m_LineOffset = node.posInLine + 1;
+
                         goto out1;
                     }
                 }
@@ -491,7 +461,7 @@ namespace def
                     HandleGoSub();
 
                     m_ReturnLine = line;
-                    m_ReturnPosInLine = std::distance(tokens.begin(), m_Token);
+                    m_ReturnPosInLine = std::distance(tokens.begin(), m_Cursor);
 
                     goto out1;
                 }
@@ -500,24 +470,25 @@ namespace def
 
                 default:
                 {
-                    if (m_Token->type == Token::Type::Colon)
+                    if (m_Cursor->type == Token::Type::Colon)
                     {
                         newStmt = true;
-                        ++m_Token;
+                        ++m_Cursor;
                     }
                     else
                         newStmt = false;
 
-                    auto [_, end] = ParseExpression(m_Token);
+                    auto [_, end] = ParseExpression(m_Cursor);
 
-                    if (m_Token == end)
+                    if (m_Cursor == end)
                     {
                         m_NextLine = line;
-                        m_LineOffset = std::distance(tokens.begin(), m_Token);
+                        m_LineOffset = std::distance(tokens.begin(), m_Cursor);
+						
                         goto out1;
                     }
                     else
-                        ++m_Token;
+                        ++m_Cursor;
                 }
 
                 }
@@ -541,21 +512,21 @@ namespace def
 		do
 		{
 			// PRINT / ;
-			++m_Token;
+			++m_Cursor;
 
             try
             {
                 // <?expr>
-                auto [res, end] = ParseExpression(m_Token);
+                auto [res, end] = ParseExpression(m_Cursor);
 
-                if (m_Token != end)
+                if (m_Cursor != end)
                 {
                     std::visit([](const auto& obj)
                         {
                             std::cout << obj.value;
                         }, res);
 
-                    m_Token = end;
+                    m_Cursor = end;
                 }
             }
             catch (const Exception_Iter& e)
@@ -563,9 +534,9 @@ namespace def
                 throw e;
             }
 		}
-		while (m_Token != m_EndIter && m_Token->type == Token::Type::Semicolon);
+		while (m_Cursor != m_End && m_Cursor->type == Token::Type::Semicolon);
 
-        if (std::prev(m_Token)->type != Token::Type::Semicolon)
+        if (std::prev(m_Cursor)->type != Token::Type::Semicolon)
             std::cout << std::endl;
 	}
 
@@ -573,14 +544,14 @@ namespace def
 	void Interpreter::HandleInput()
 	{
 		// INPUT
-		++m_Token;
+		++m_Cursor;
 
         try
         {
             // <question> / <arg>
-            auto [expr, end] = ParseExpression(m_Token);
+            auto [expr, end] = ParseExpression(m_Cursor);
 
-            if (end != m_EndIter && end->type == Token::Type::Semicolon)
+            if (end != m_End && end->type == Token::Type::Semicolon)
             {
                 // ;
                 ++end;
@@ -593,15 +564,15 @@ namespace def
                     throw std::runtime_error("Expected variable name: INPUT <?question>; <arg>");
             }
 
-            if (m_Token->type == Token::Type::Symbol)
+            if (m_Cursor->type == Token::Type::Symbol)
             {
                 std::string line;
                 std::getline(std::cin >> std::ws, line);
 
-                m_Variables.Set(m_Token->value, String{ line });
+                m_Variables.Set(m_Cursor->value, String{ line });
             }
 
-            m_Token = end;
+            m_Cursor = end;
         }
         catch (const Exception_Iter& e)
         {
@@ -618,33 +589,33 @@ namespace def
 		system("clear");
 	#endif
 
-		++m_Token;
+		++m_Cursor;
 	}
 
 	// LET <name> = <expr>
 	void Interpreter::HandleLet()
 	{
 		// LET
-		++m_Token;
+		++m_Cursor;
 
 		// <name>
-		if (m_Token->type != Token::Type::Symbol)
-            throw Exception_Iter(m_Token, "Expected variable name: LET <name> = <expr>");
+		if (m_Cursor->type != Token::Type::Symbol)
+            throw Exception_Iter(m_Cursor, "Expected variable name");
 
-		std::string name = m_Token->value;
-		++m_Token;
+		std::string name = m_Cursor->value;
+		++m_Cursor;
 
 		// =
-		if (m_Token->type != Token::Type::Operator)
-            throw Exception_Iter(m_Token, "Expected =: LET <name> = <expr>");
+		if (m_Cursor->type != Token::Type::Operator)
+            throw Exception_Iter(m_Cursor, "Expected =");
 
         try
         {
             // <expr>
-            auto [res, end] = ParseExpression(m_Token + 1);
+            auto [res, end] = ParseExpression(m_Cursor + 1);
 
             m_Variables.Set(name, res);
-            m_Token = end;
+            m_Cursor = end;
         }
         catch (const Exception_Iter& e)
         {
@@ -656,18 +627,18 @@ namespace def
 	void Interpreter::HandleGoto()
 	{
 		// GOTO
-		++m_Token;
+		++m_Cursor;
 
         try
         {
             // <line>
-            auto [res, end] = ParseExpression(m_Token);
+            auto [res, end] = ParseExpression(m_Cursor);
 
             if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(std::prev(end), "Expected line number to be numeric: GOTO <line>");
+                throw Exception_Iter(std::prev(end), "Expected line number to be numeric");
 
             m_NextLine = (int)std::get<Numeric>(res).value;
-            m_Token = end;
+            m_Cursor = end;
         }
         catch (const Exception_Iter& e)
         {
@@ -679,12 +650,12 @@ namespace def
 	void Interpreter::HandleIf()
 	{
 		// IF
-		++m_Token;
+		++m_Cursor;
 
         try
         {
             // <expr>
-            auto [res, iter] = ParseExpression(m_Token);
+            auto [res, iter] = ParseExpression(m_Cursor);
 
             if (!std::holds_alternative<Numeric>(res))
                 throw Exception_Iter(std::prev(iter), "Expected expression result to be numeric");
@@ -704,7 +675,7 @@ namespace def
                 m_SkipElse = false;
 
                 // Searching for the corresponding ELSE block
-                while (iter != m_EndIter && iter->type != Token::Type::Colon)
+                while (iter != m_End && iter->type != Token::Type::Colon)
                 {
                     if (iter->type == Token::Type::Keyword_If)
                         ++elseBalancer;
@@ -714,7 +685,7 @@ namespace def
                         if (elseBalancer == 0)
                         {
                             // Found corresponding ELSE block so just stop here
-                            m_Token = iter + 1;
+                            m_Cursor = iter + 1;
                             return;
                         }
 
@@ -729,7 +700,7 @@ namespace def
             else // <expr> != 0
                 m_SkipElse = true;
 
-            m_Token = iter;
+            m_Cursor = iter;
         }
         catch (const Exception_Iter& e)
         {
@@ -742,14 +713,14 @@ namespace def
 		if (m_SkipElse)
 		{
 			// We need to skip the corresponding ELSE block so just move to the end of the line
-			m_Token = m_EndIter;
+			m_Cursor = m_End;
 		}
 		else
 		{
 			m_SkipElse = true;
 
 			// ELSE
-			++m_Token;
+			++m_Cursor;
 		}
 	}
 
@@ -760,28 +731,28 @@ namespace def
 		Object res;
 
 		// FOR
-		++m_Token;
+		++m_Cursor;
 
 		// <var>
-		if (m_Token->type != Token::Type::Symbol)
-            throw Exception_Iter(m_Token, "Expected variable name");
+		if (m_Cursor->type != Token::Type::Symbol)
+            throw Exception_Iter(m_Cursor, "Expected variable name");
 
-		node.varName = m_Token->value;
-		++m_Token;
+		node.varName = m_Cursor->value;
+		++m_Cursor;
 
 		// =
-		if (m_Token->type != Token::Type::Operator)
-            throw Exception_Iter(m_Token, "Expected =");
+		if (m_Cursor->type != Token::Type::Operator)
+            throw Exception_Iter(m_Cursor, "Expected =");
 
-		++m_Token;
+		++m_Cursor;
 
 		try
 		{
             // <expr>
-			std::tie(res, m_Token) = ParseExpression(m_Token);
+			std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
 
 			if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(m_Token, "Expected <expr> result to be numeric");
+                throw Exception_Iter(m_Cursor, "Expected <expr> result to be numeric");
 
 			node.startValue = std::get<Numeric>(res).value;
         }
@@ -791,18 +762,18 @@ namespace def
         }
 
 		// TO
-		if (m_Token->type != Token::Type::Keyword_To)
-            throw Exception_Iter(m_Token, "Expected TO after <expr>");
+		if (m_Cursor->type != Token::Type::Keyword_To)
+            throw Exception_Iter(m_Cursor, "Expected TO after <expr>");
 
-		++m_Token;
+		++m_Cursor;
 
 		try
 		{
             // <expr>
-			std::tie(res, m_Token) = ParseExpression(m_Token);
+			std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
 
 			if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(m_Token, "Expected <expr> result to be numeric");
+                throw Exception_Iter(m_Cursor, "Expected <expr> result to be numeric");
 
 			node.endValue = std::get<Numeric>(res).value;
         }
@@ -812,14 +783,14 @@ namespace def
 		}
 
 		// STEP
-		if (m_Token != m_EndIter && m_Token->type == Token::Type::Keyword_Step)
+		if (m_Cursor != m_End && m_Cursor->type == Token::Type::Keyword_Step)
 		{
-			++m_Token;
+			++m_Cursor;
 
 			// <expr>
 			try
 			{
-				std::tie(res, m_Token) = ParseExpression(m_Token);
+				std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
 
 				if (!std::holds_alternative<Numeric>(res))
                     throw std::runtime_error("Expected <expr> result to be numeric");
@@ -842,24 +813,24 @@ namespace def
 	void Interpreter::HandleNext()
 	{        
 		if (m_ForStack.empty())
-            throw Exception_Iter(m_Token, "NEXT without FOR");
+            throw Exception_Iter(m_Cursor, "NEXT without FOR");
 
         // NEXT
-        ++m_Token;
+        ++m_Cursor;
 
         // <var>
-        if (m_Token != m_EndIter && m_Token->type == Token::Type::Symbol)
+        if (m_Cursor != m_End && m_Cursor->type == Token::Type::Symbol)
         {
             // While FOR on top of stack doesn't have variable with specified name
-            while (m_ForStack.back().varName != m_Token->value)
+            while (m_ForStack.back().varName != m_Cursor->value)
             {
                 m_ForStack.pop_back();
 
                 if (m_ForStack.empty())
-                    throw Exception_Iter(m_Token, "Can't find FOR loop with specified var name");
+                    throw Exception_Iter(m_Cursor, "Can't find FOR loop with specified var name");
             }
 
-            ++m_Token;
+            ++m_Cursor;
         }
 
         ForNode& node = m_ForStack.back();
@@ -877,12 +848,12 @@ namespace def
 	void Interpreter::HandleSleep()
 	{
 		// SLEEP
-		++m_Token;
+		++m_Cursor;
 
         try
         {
             // <expr>
-            auto [res, end] = ParseExpression(m_Token);
+            auto [res, end] = ParseExpression(m_Cursor);
 
             if (std::holds_alternative<Numeric>(res))
             {
@@ -898,7 +869,7 @@ namespace def
                 throw Exception_Iter(end, "Expected milliseconds to be numeric");
             }
 
-            m_Token = end;
+            m_Cursor = end;
         }
         catch (const Exception_Iter& e)
         {
@@ -910,12 +881,12 @@ namespace def
     void Interpreter::HandleGoSub()
     {
         // GOSUB
-        ++m_Token;
+        ++m_Cursor;
 
         try
         {
             // <line>
-            auto [res, end] = ParseExpression(m_Token);
+            auto [res, end] = ParseExpression(m_Cursor);
 
             if (!std::holds_alternative<Numeric>(res))
                 throw std::runtime_error("Provide a line number");
@@ -925,7 +896,7 @@ namespace def
             if (line < 0)
                 throw std::runtime_error("Provide a line number > 0");
 
-            m_Token = end;
+            m_Cursor = end;
             m_NextLine = line;
         }
         catch (const Exception_Iter& e)
@@ -938,7 +909,7 @@ namespace def
     void Interpreter::HandleReturn()
     {
         if (m_ReturnLine == Result_Undefined)
-            throw Exception_Iter(m_Token, "RETURN without GOSUB");
+            throw Exception_Iter(m_Cursor, "RETURN without GOSUB");
 
         m_NextLine = m_ReturnLine;
         m_LineOffset = m_ReturnPosInLine;

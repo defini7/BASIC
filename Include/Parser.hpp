@@ -9,7 +9,7 @@
 #include "Guard.hpp"
 #include "Exception.hpp"
 
-namespace def
+namespace Basic
 {
     void String_ToLower(std::string& s);
 
@@ -33,6 +33,7 @@ namespace def
 			Symbol
 		};
 
+		// Splits input into tokens and returns line number, -1 if no line was specified
         int Tokenise(const std::string& input, std::vector<Token>& tokens);
 
 	public:

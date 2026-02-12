@@ -1,7 +1,7 @@
 #include "Include/Token.hpp"
 #include <sstream>
 
-namespace def
+namespace Basic
 {
 	Token::Token(Type type, const std::string_view value) : type(type), value(value)
 	{
@@ -87,7 +87,7 @@ namespace def
 
         for (const auto& token : tokens)
         {
-            if (token.type == def::Token::Type::Literal_String)
+            if (token.type == Basic::Token::Type::Literal_String)
                 ss << ' ' << '"' << token.value << '"';
             else
                 ss << ' ' << token.value;

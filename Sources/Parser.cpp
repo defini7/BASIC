@@ -1,6 +1,6 @@
 #include "Include/Parser.hpp"
 
-namespace def
+namespace Basic
 {
 	void String_ToLower(std::string& s)
 	{
@@ -48,7 +48,7 @@ namespace def
 			if (stateNow == State::NewToken)
 			{
 				// Skip whitespace
-				if (guard::Whitespaces[*currentChar])
+				if (Guard::Whitespaces[*currentChar])
 				{
 					stateNext = State::NewToken;
 					currentChar++;
@@ -56,25 +56,25 @@ namespace def
 				}
 
 				// Check for a digit
-				if (guard::DecDigits[*currentChar])
+				if (Guard::DecDigits[*currentChar])
 					StartToken(Token::Type::Literal_NumericBase10, State::Literal_NumericBase10);
 
 				else if (*currentChar == '&')
 					StartToken(Token::Type::Literal_NumericBaseUnknown, State::Literal_NumericBaseUnknown, false);
 
 				// Check for an operator
-				else if (guard::Operators[*currentChar])
+				else if (Guard::Operators[*currentChar])
 					StartToken(Token::Type::Operator, State::Operator);
 
 				// Check for a string literal
-				else if (guard::Quotes[*currentChar])
+				else if (Guard::Quotes[*currentChar])
 				{
 					StartToken(Token::Type::Literal_String, State::Literal_String, false);
 					quotesBalancer++;
 				}
 
 				// Check for a symbol (e.g. abc123, something_with_underscore)
-				else if (guard::Symbols[*currentChar])
+				else if (Guard::Symbols[*currentChar])
 					StartToken(Token::Type::Symbol, State::Symbol);
 
 				else if (*currentChar == '(')
@@ -110,7 +110,7 @@ namespace def
 				{
 				#define Prepare(base) do { token.type = Token::Type::Literal_NumericBase##base; stateNext = State::Literal_NumericBase##base; } while (0)
 
-					if (guard::Prefixes[*currentChar])
+					if (Guard::Prefixes[*currentChar])
 					{
 						// Determine base of numeric literal
 
@@ -139,11 +139,11 @@ namespace def
 			#define CASE_LITERAL_NUMERIC_BASE(base, name) \
 				case State::Literal_NumericBase##base: \
 				{ \
-					if (guard::name##Digits[*currentChar]) \
+					if (Guard::name##Digits[*currentChar]) \
 						AppendChar(State::Literal_NumericBase##base); \
 					else \
 					{ \
-						if (guard::Symbols[*currentChar]) \
+						if (Guard::Symbols[*currentChar]) \
                             throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol"); \
 						stateNext = State::CompleteToken; \
 					} \
@@ -159,7 +159,7 @@ namespace def
 				{
 					// Read string
 
-					if (guard::Quotes[*currentChar])
+					if (Guard::Quotes[*currentChar])
 					{
 						quotesBalancer--;
 						stateNext = State::CompleteToken;
@@ -172,7 +172,7 @@ namespace def
 
 				case State::Operator:
 				{
-					if (guard::Operators[*currentChar])
+					if (Guard::Operators[*currentChar])
 					{
 						// If we found an operator then continue searching for a longer operator
 						if (s_Operators.contains(token.value + *currentChar))
@@ -211,54 +211,54 @@ namespace def
 				{
 					// Note: we treat all invalid symbols (e.g. 123abc) in the Literal_Numeric state
 
-					if (guard::Symbols[*currentChar] || guard::DecDigits[*currentChar])
+					if (Guard::Symbols[*currentChar] || Guard::DecDigits[*currentChar])
 						AppendChar(State::Symbol);
 					else
 					{
 					parse_keyword:
 						String_ToLower(token.value);
 
-					#define Keyword(signature, name) if (token.value == signature) token.type = Token::Type::Keyword_##name
+					#define KEYWORD(signature, name) if (token.value == signature) token.type = Token::Type::Keyword_##name
 
-						Keyword("print", Print);
-						Keyword("input", Input);
-						Keyword("cls", Cls);
-						Keyword("let", Let);
-						Keyword("rem", Rem);
-						Keyword("goto", Goto);
-						Keyword("if", If);
-						Keyword("then", Then);
-						Keyword("else", Else);
-						Keyword("for", For);
-						Keyword("to", To);
-						Keyword("step", Step);
-						Keyword("next", Next);
-						Keyword("sleep", Sleep);
-						Keyword("sin", Sin);
-						Keyword("cos", Cos);
-						Keyword("tan", Tan);
-						Keyword("arcsin", ArcSin);
-						Keyword("arccos", ArcCos);
-						Keyword("arctan", ArcTan);
-						Keyword("sqr", Sqrt);
-						Keyword("log", Log);
-						Keyword("exp", Exp);
-						Keyword("abs", Abs);
-						Keyword("sgn", Sign);
-						Keyword("int", Int);
-                        Keyword("rnd", Random);
-                        Keyword("end", End);
-                        Keyword("gosub", GoSub);
-                        Keyword("return", Return);
-                        Keyword("val", Val);
-						Keyword("list", List);
-						Keyword("run", Run);
-						Keyword("new", New);
+						KEYWORD("print", Print);
+						KEYWORD("input", Input);
+						KEYWORD("cls", Cls);
+						KEYWORD("let", Let);
+						KEYWORD("rem", Rem);
+						KEYWORD("goto", Goto);
+						KEYWORD("if", If);
+						KEYWORD("then", Then);
+						KEYWORD("else", Else);
+						KEYWORD("for", For);
+						KEYWORD("to", To);
+						KEYWORD("step", Step);
+						KEYWORD("next", Next);
+						KEYWORD("sleep", Sleep);
+						KEYWORD("sin", Sin);
+						KEYWORD("cos", Cos);
+						KEYWORD("tan", Tan);
+						KEYWORD("arcsin", ArcSin);
+						KEYWORD("arccos", ArcCos);
+						KEYWORD("arctan", ArcTan);
+						KEYWORD("sqr", Sqrt);
+						KEYWORD("log", Log);
+						KEYWORD("exp", Exp);
+						KEYWORD("abs", Abs);
+						KEYWORD("sgn", Sign);
+						KEYWORD("int", Int);
+                        KEYWORD("rnd", Random);
+                        KEYWORD("end", End);
+                        KEYWORD("gosub", GoSub);
+                        KEYWORD("return", Return);
+                        KEYWORD("val", Val);
+						KEYWORD("list", List);
+						KEYWORD("run", Run);
+						KEYWORD("new", New);
+
+					#undef KEYWORD
 
 						if (currentChar == input.end())
 							goto complete_token;
-
-					#undef Keyword
 
 						stateNext = State::CompleteToken;
 					}
@@ -320,7 +320,6 @@ namespace def
 		{"/", { Operator::Type::Division, 3, 2 } },
         {"^", { Operator::Type::Power, 4, 2 } },
 
-		// Unary operators (in that way they are easier to handle)
 		{"u-", { Operator::Type::Subtraction, Operator::MAX_PRECEDENCE, 1 } },
 		{"u+", { Operator::Type::Addition, Operator::MAX_PRECEDENCE, 1 } },
 	};

@@ -6,7 +6,7 @@
 
 #include "Token.hpp"
 
-namespace def
+namespace Basic
 {
     struct Exception : std::exception
     {
@@ -19,11 +19,16 @@ namespace def
 
     };
 
+    // Not real std-ish exception but helps to transfer iterator
+    // and error message between contexts
     struct Exception_Iter
     {
         Exception_Iter(Token::Iter iter, const std::string& message);
 
+        // Iterator to word in code
         Token::Iter iterator;
+
+        // Error message
         std::string message;
 
     };

@@ -2,9 +2,9 @@
 
 #include <limits>
 
-namespace def
+namespace Basic
 {
-	typedef unsigned char Uint8;
+	typedef unsigned char Byte;
 
 	struct Operator
 	{
@@ -25,9 +25,9 @@ namespace def
 		};
 
 		Type type;
-		Uint8 precedence;
-		Uint8 arguments;
+		Byte precedence;
+		Byte arguments;
 
-		static constexpr Uint8 MAX_PRECEDENCE = std::numeric_limits<Uint8>::max();
+		static constexpr Byte MAX_PRECEDENCE = std::numeric_limits<Byte>::max();
 	};
 }

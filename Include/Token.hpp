@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace def
+namespace Basic
 {
     struct Token
 	{

@@ -1,5 +1,10 @@
 # BASIC
 
+## Introduction
+
+It is an attempt to implement MSX Basic (1988) but there are still some missing commands.
+Code must be compiled with C++20 and for convenience there is *.pro* file for Qt Creator.
+
 ## Features
 
 1) Variables
@@ -24,7 +29,7 @@
 ```basic
 10 FOR i=0 TO 5 STEP 0.5
 20 PRINT i
-30 NEXT
+30 NEXT i
 ```
 
 5) IF
@@ -50,11 +55,26 @@
 - ABS \<arg>
 - SIGN \<arg>
 - INT \<arg> - truncates \<arg>
+- VAL \<arg> - converts \<arg> to int if \<arg> is string, does not do anything if \<arg> is int
+
+8) Operators
+
+- = - asssign
+- == - is equals
+- <> - not equals
+- < - less than
+- \> - greater than
+- <= - less than or equals
+- \>= - greater than or equals
+- \- minus (can be unary)
+- \+ - plus (can be unary)
+- \* - multiply
+- / - divide
+- ^ - power
 
 ## To Do
 
-1) NEXT <arg> jumps to the specified FOR loop
-2) Arrays
+1) Arrays
 
 ## References
 

@@ -8,7 +8,7 @@
 #include "Token.hpp"
 #include "VarStorage.hpp"
 
-namespace def
+namespace Basic
 {
 	struct ForNode
 	{
@@ -38,9 +38,47 @@ namespace def
 		int Execute(const std::vector<Token>& tokens, int line = -1);
 
 	private:
+		// Parses expression using tokens starting from iter and
+		// returns last object and iterator to token after last-parsed one
         std::pair<Object, Token::Iter> ParseExpression(Token::Iter iter);
 
 	private:
+		template <class T>
+        auto UnwrapValue(Token::Iter iter, const Object& obj, const std::string& error = "")
+		{
+			if (std::holds_alternative<Symbol>(obj))
+			{
+				const std::string& name = std::get<Symbol>(obj).value;
+
+				// Let's check if a variable with the given name exists
+				const auto variable = m_Variables.Get(name);
+
+				if (variable)
+				{
+					// The variable exists...
+
+					const auto value = variable.value().get();
+
+					if (!std::holds_alternative<T>(value))
+					{
+						// ... but it doesn't have type that we want
+                        throw Exception_Iter(iter, error);
+					}
+
+					// ... and it's of the right type so return it
+					return std::get<T>(value).value;
+				}
+
+				// Couldn't find the variable so assume it was an invalid symbol
+                throw Exception_Iter(iter, "Unexpected symbol: " + name);
+			}
+
+			if (!std::holds_alternative<T>(obj))
+                throw Exception_Iter(iter, error);
+
+			return std::get<T>(obj).value;
+		}
+
 		void HandlePrint();
 		void HandleInput();
 		void HandleCls();
@@ -56,11 +94,12 @@ namespace def
 
 	private:
 		VarStorage m_Variables;
-        Token::Iter m_EndIter;
 
 		int m_NextLine;
 		int m_LineOffset = 0;
-        Token::Iter m_Token;
+		
+        Token::Iter m_Cursor;
+		Token::Iter m_End;
 
 		std::deque<ForNode> m_ForStack;
 		std::deque<ForNode> m_IfStack;

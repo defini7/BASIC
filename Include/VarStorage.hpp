@@ -6,7 +6,7 @@
 #include <optional>
 #include <numeric>
 
-namespace def
+namespace Basic
 {
 	using Real = long double;
 

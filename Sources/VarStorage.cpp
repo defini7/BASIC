@@ -1,6 +1,6 @@
 #include "Include/VarStorage.hpp"
 
-namespace def
+namespace Basic
 {
 	void VarStorage::Set(const std::string& name, const Object& value)
 	{
