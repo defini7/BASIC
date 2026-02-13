@@ -59,7 +59,8 @@ namespace Basic
 
 			Keyword_List,
 			Keyword_Run,
-            Keyword_New
+            Keyword_New,
+            Keyword_Load
 		};
 
 		Token() = default;

@@ -87,10 +87,12 @@ namespace Basic
 
         for (const auto& token : tokens)
         {
+            ss << ' ';
+
             if (token.type == Basic::Token::Type::Literal_String)
-                ss << ' ' << '"' << token.value << '"';
+                ss << '"' << token.value << '"';
             else
-                ss << ' ' << token.value;
+                ss << token.value;
         }
 
         return ss.str();

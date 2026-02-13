@@ -11,7 +11,7 @@
 
 namespace Basic
 {
-    void String_ToLower(std::string& s);
+    void String_ToUpper(std::string& s);
 
 	class Parser
 	{
@@ -34,7 +34,7 @@ namespace Basic
 		};
 
 		// Splits input into tokens and returns line number, -1 if no line was specified
-        int Tokenise(const std::string& input, std::vector<Token>& tokens);
+        void Tokenise(const std::string& input, std::vector<Token>& tokens);
 
 	public:
 		static std::unordered_map<std::string, Operator> s_Operators;

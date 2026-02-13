@@ -2,16 +2,16 @@
 
 namespace Basic
 {
-	void String_ToLower(std::string& s)
+    void String_ToUpper(std::string& s)
 	{
 		for (char& c : s)
 		{
-			if (c <= 'Z' && c >= 'A')
-				c += 'z' - 'Z';
+            if ('a' <= c && c <= 'z')
+                c += 'Z' - 'z';
 		}
 	}
 
-    int Parser::Tokenise(const std::string& input, std::vector<Token>& tokens)
+    void Parser::Tokenise(const std::string& input, std::vector<Token>& tokens)
 	{
 		State stateNow = State::NewToken;
 		State stateNext = State::NewToken;
@@ -216,44 +216,45 @@ namespace Basic
 					else
 					{
 					parse_keyword:
-						String_ToLower(token.value);
+                        String_ToUpper(token.value);
 
 					#define KEYWORD(signature, name) if (token.value == signature) token.type = Token::Type::Keyword_##name
 
-						KEYWORD("print", Print);
-						KEYWORD("input", Input);
-						KEYWORD("cls", Cls);
-						KEYWORD("let", Let);
-						KEYWORD("rem", Rem);
-						KEYWORD("goto", Goto);
-						KEYWORD("if", If);
-						KEYWORD("then", Then);
-						KEYWORD("else", Else);
-						KEYWORD("for", For);
-						KEYWORD("to", To);
-						KEYWORD("step", Step);
-						KEYWORD("next", Next);
-						KEYWORD("sleep", Sleep);
-						KEYWORD("sin", Sin);
-						KEYWORD("cos", Cos);
-						KEYWORD("tan", Tan);
-						KEYWORD("arcsin", ArcSin);
-						KEYWORD("arccos", ArcCos);
-						KEYWORD("arctan", ArcTan);
-						KEYWORD("sqr", Sqrt);
-						KEYWORD("log", Log);
-						KEYWORD("exp", Exp);
-						KEYWORD("abs", Abs);
-						KEYWORD("sgn", Sign);
-						KEYWORD("int", Int);
-                        KEYWORD("rnd", Random);
-                        KEYWORD("end", End);
-                        KEYWORD("gosub", GoSub);
-                        KEYWORD("return", Return);
-                        KEYWORD("val", Val);
-						KEYWORD("list", List);
-						KEYWORD("run", Run);
-						KEYWORD("new", New);
+                        KEYWORD("PRINT", Print);
+                        KEYWORD("INPUT", Input);
+                        KEYWORD("CLS", Cls);
+                        KEYWORD("LET", Let);
+                        KEYWORD("REM", Rem);
+                        KEYWORD("GOTO", Goto);
+                        KEYWORD("IF", If);
+                        KEYWORD("THEN", Then);
+                        KEYWORD("ELSE", Else);
+                        KEYWORD("FOR", For);
+                        KEYWORD("TO", To);
+                        KEYWORD("STEP", Step);
+                        KEYWORD("NEXT", Next);
+                        KEYWORD("SLEEP", Sleep);
+                        KEYWORD("SIN", Sin);
+                        KEYWORD("COS", Cos);
+                        KEYWORD("TAN", Tan);
+                        KEYWORD("ARCSIN", ArcSin);
+                        KEYWORD("ARCCOS", ArcCos);
+                        KEYWORD("ARCTAN", ArcTan);
+                        KEYWORD("SQR", Sqrt);
+                        KEYWORD("LOG", Log);
+                        KEYWORD("EXP", Exp);
+                        KEYWORD("ABS", Abs);
+                        KEYWORD("SGN", Sign);
+                        KEYWORD("INT", Int);
+                        KEYWORD("RND", Random);
+                        KEYWORD("END", End);
+                        KEYWORD("GOSUB", GoSub);
+                        KEYWORD("RETURN", Return);
+                        KEYWORD("VAL", Val);
+                        KEYWORD("LIST", List);
+                        KEYWORD("RUN", Run);
+                        KEYWORD("NEW", New);
+                        KEYWORD("LOAD", Load);
 
 					#undef KEYWORD
 
@@ -294,15 +295,6 @@ namespace Basic
 		// Drain out the last token
 		if (!token.value.empty())
 			tokens.push_back(token);
-		
-		// In the original BASIC I guess "2.5 + 2" must be treated as "2 .5 + 2" but for now let's treat it as "2.5 + 2"
-		if (tokens.empty() || tokens.front().type != Token::Type::Literal_NumericBase10 || tokens.front().value.find('.') != std::string::npos)
-            return -1;
-
-		int line = std::stoi(tokens.front().value);
-		tokens.erase(tokens.begin());
-
-		return line;
 	}
 
 	std::unordered_map<std::string, Operator> Parser::s_Operators =

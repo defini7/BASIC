@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <variant>
+#include <map>
 
 #include "Operator.hpp"
 #include "Parser.hpp"
@@ -10,6 +11,8 @@
 
 namespace Basic
 {
+    Basic::Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception);
+
 	struct ForNode
 	{
 		std::string varName;
@@ -35,7 +38,8 @@ namespace Basic
 		Interpreter() = default;
 
 	public:
-		int Execute(const std::vector<Token>& tokens, int line = -1);
+        // Executes line and returns true if it was programm mode (i.e. with line number)
+        bool RunLine(const std::vector<Token>& tokens, int lineNumber = -1);
 
 	private:
 		// Parses expression using tokens starting from iter and
@@ -91,8 +95,13 @@ namespace Basic
 		void HandleSleep();
         void HandleGoSub();
         void HandleReturn();
+        void HandleList();
+        void HandleNew();
+        void HandleRun();
+        void HandleLoad();
 
 	private:
+        std::map<int, std::vector<Basic::Token>> m_Programm;
 		VarStorage m_Variables;
 
 		int m_NextLine;

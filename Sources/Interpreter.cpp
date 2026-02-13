@@ -4,6 +4,7 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <fstream>
 
 #define REAL_SIGN(v) (Real)((0.0l < v) - (v < 0.0l))
 
@@ -49,6 +50,10 @@ namespace Basic
 			case Token::Type::Keyword_Sleep:
             case Token::Type::Keyword_GoSub:
             case Token::Type::Keyword_Return:
+            case Token::Type::Keyword_List:
+            case Token::Type::Keyword_Run:
+            case Token::Type::Keyword_New:
+            case Token::Type::Keyword_Load:
 			case Token::Type::Semicolon:
 			case Token::Type::Colon:
 				goto out;
@@ -390,12 +395,43 @@ namespace Basic
 		return std::make_pair(obj, token);
 	}
 
-	int Interpreter::Execute(const std::vector<Token>& tokens, int line)
-	{
+    Basic::Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
+    {
+        int pos = 0;
+
+        for (auto it = tokens.begin(); it != exception.iterator; ++it)
+            pos += it->value.length() + 1;
+
+        return Basic::Exception(input, pos, exception.message);
+    }
+
+    bool Interpreter::RunLine(const std::vector<Token>& tokens, int lineNumber)
+    {
+        if (tokens.empty())
+            return false;
+
+        bool programmMode = lineNumber > 0;
+
+        // If the first token in a string is decimal then it must be a line number
+        // so we don't want to execute our programm, we just want to save the line
+        if (!programmMode && m_LineOffset == 0 && tokens[0].type == Token::Type::Literal_NumericBase10)
+        {
+            int line = std::stoi(tokens[0].value);
+
+            if (line < 0)
+                throw Basic::Exception_Iter(tokens.begin() + 1, "Invalid line number");
+
+            m_Programm[line] = std::vector<Token>(tokens.begin() + 1, tokens.end());
+
+            return true;
+        }
+
         if (m_LineOffset >= (int)tokens.size())
 		{
 			m_LineOffset = 0;
-            return Result_NextLine;
+            m_NextLine = Result_NextLine;
+
+            return false;
 		}
 
         m_NextLine = Result_NextLine;
@@ -417,8 +453,8 @@ namespace Basic
                 case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
                 case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
                 case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
-                case Token::Type::Keyword_Rem: NEW_STMT; goto out1;
-                case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); goto out1;
+                case Token::Type::Keyword_Rem: NEW_STMT; return programmMode;
+                case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); return programmMode;
                 case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
                 case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
 
@@ -431,7 +467,7 @@ namespace Basic
                     ForNode& node = m_ForStack.back();
 
                     node.posInLine = std::distance(tokens.begin(), m_Cursor);
-                    node.line = line;
+                    node.line = lineNumber;
 
                     m_LineOffset = node.posInLine + 1;
                 }
@@ -448,25 +484,29 @@ namespace Basic
                         ForNode& node = m_ForStack.back();
                         m_LineOffset = node.posInLine + 1;
 
-                        goto out1;
+                        return programmMode;
                     }
                 }
                 break;
 
                 case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
-                case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; goto out1;
+                case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; return programmMode;
                 case Token::Type::Keyword_GoSub:
                 {
                     NEW_STMT;
                     HandleGoSub();
 
-                    m_ReturnLine = line;
+                    m_ReturnLine = lineNumber;
                     m_ReturnPosInLine = std::distance(tokens.begin(), m_Cursor);
 
-                    goto out1;
+                    return programmMode;
                 }
 
-                case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); goto out1;
+                case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); return programmMode;
+                case Token::Type::Keyword_List: NEW_STMT; HandleList(); return programmMode;
+                case Token::Type::Keyword_New: NEW_STMT; HandleNew(); return programmMode;
+                case Token::Type::Keyword_Run: NEW_STMT; HandleRun(); return programmMode;
+                case Token::Type::Keyword_Load: NEW_STMT; HandleLoad(); return programmMode;
 
                 default:
                 {
@@ -482,10 +522,10 @@ namespace Basic
 
                     if (m_Cursor == end)
                     {
-                        m_NextLine = line;
+                        m_NextLine = lineNumber;
                         m_LineOffset = std::distance(tokens.begin(), m_Cursor);
 						
-                        goto out1;
+                        return programmMode;
                     }
                     else
                         ++m_Cursor;
@@ -501,9 +541,7 @@ namespace Basic
 
 		m_LineOffset = 0;
 
-		out1:
-
-		return m_NextLine;
+        return programmMode;
 	}
 
 	// PRINT <?expr>; <?expr>; ...
@@ -540,39 +578,41 @@ namespace Basic
             std::cout << std::endl;
 	}
 
-	// INPUT <?question>; <arg>
-	void Interpreter::HandleInput()
+    // INPUT <?question>; <variable>
+    void Interpreter::HandleInput()
 	{
 		// INPUT
 		++m_Cursor;
 
         try
         {
-            // <question> / <arg>
-            auto [expr, end] = ParseExpression(m_Cursor);
-
-            if (end != m_End && end->type == Token::Type::Semicolon)
+            // <question>
+            if (m_Cursor != m_End && m_Cursor->type == Token::Type::Literal_String)
             {
+                std::cout << m_Cursor->value;
+
+                // <question>
+                ++m_Cursor;
+
+                if (m_Cursor == m_End || m_Cursor->type != Token::Type::Semicolon)
+                    throw Exception_Iter(m_Cursor, "Expected ;");
+
                 // ;
-                ++end;
-
-                if (std::holds_alternative<String>(expr))
-                    std::cout << std::get<String>(expr).value;
-
-                // <arg>
-                if (end->type != Token::Type::Symbol)
-                    throw std::runtime_error("Expected variable name: INPUT <?question>; <arg>");
+                ++m_Cursor;
             }
 
-            if (m_Cursor->type == Token::Type::Symbol)
+            if (m_Cursor != m_End && m_Cursor->type == Token::Type::Symbol)
             {
                 std::string line;
                 std::getline(std::cin >> std::ws, line);
 
-                m_Variables.Set(m_Cursor->value, String{ line });
-            }
+                m_Variables.Set(m_Cursor->value, String { line });
 
-            m_Cursor = end;
+                // <variable>
+                ++m_Cursor;
+            }
+            else
+                throw Exception_Iter(m_Cursor, "Expected variable name");
         }
         catch (const Exception_Iter& e)
         {
@@ -916,5 +956,82 @@ namespace Basic
 
         m_ReturnLine = Result_Undefined;
         m_ReturnPosInLine = Result_Undefined;
+    }
+
+    // LIST
+    void Interpreter::HandleList()
+    {
+        for (const auto& [line, tokens] : m_Programm)
+            std::cout << line << TokensToString(tokens) << std::endl;
+    }
+
+    // NEW
+    void Interpreter::HandleNew()
+    {
+        ++m_Cursor;
+        m_Programm.clear();
+    }
+
+    // RUN
+    void Interpreter::HandleRun()
+    {
+        auto line = m_Programm.begin();
+
+        while (line != m_Programm.end())
+        {
+            try
+            {
+                RunLine(line->second, line->first);
+
+                if (m_NextLine == Basic::Interpreter::Result_Terminate)
+                    line = m_Programm.end();
+                else if (m_NextLine == Basic::Interpreter::Result_NextLine)
+                    line++;
+                else
+                    line = m_Programm.find(m_NextLine);
+
+                // line == m_Programm.end() is unreachable
+            }
+            catch (const Basic::Exception_Iter& e)
+            {
+                throw GenerateException(line->second, TokensToString(line->second), e);
+            }
+        }
+    }
+
+    // LOAD
+    void Interpreter::HandleLoad()
+    {
+        // LOAD
+        ++m_Cursor;
+
+        // <path>
+        if (m_Cursor->type != Token::Type::Literal_String)
+            throw Exception_Iter(m_Cursor, "Expected file path");
+
+        std::ifstream ifs(m_Cursor->value);
+
+        if (!ifs.is_open())
+            throw Exception_Iter(m_Cursor, "Can't open file");
+
+        m_Programm.clear();
+
+        Parser parser;
+
+        while (!ifs.eof())
+        {
+            std::string buf;
+            std::getline(ifs, buf);
+
+            std::vector<Token> tokens;
+            parser.Tokenise(buf, tokens);
+
+            RunLine(tokens);
+        }
+
+        ifs.close();
+
+        // <path>
+        ++m_Cursor;
     }
 }
