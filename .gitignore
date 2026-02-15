@@ -1,4 +1,5 @@
-Build/*
-build/*
-.qtcreator/*
-*.pro.user
+VS2026/BASIC
+VS2026/x64
+VS2026/x86
+VS2026/*.user
+VS2026/.vs

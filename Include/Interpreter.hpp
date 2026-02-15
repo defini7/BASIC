@@ -11,7 +11,12 @@
 
 namespace Basic
 {
-    Basic::Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception);
+	inline Real Real_Sign(Real v)
+	{
+		return Real(int(0 < v) - int(v < 0));
+	}
+
+    Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception);
 
 	struct ForNode
 	{
@@ -20,9 +25,9 @@ namespace Basic
 		int line;
 		int posInLine;
 
-		long double startValue;
-		long double endValue;
-		long double step;
+		Real startValue;
+		Real endValue;
+		Real step;
 	};
 
 	class Interpreter
@@ -40,6 +45,15 @@ namespace Basic
 	public:
         // Executes line and returns true if it was programm mode (i.e. with line number)
         bool RunLine(const std::vector<Token>& tokens, int lineNumber = -1);
+
+		// Resets internal state so it is ready to run new line
+		void Reset();
+
+		// Checks if cursor is at end of current line
+		inline bool IsEnd() const
+		{
+			return m_Cursor == m_End;
+		}
 
 	private:
 		// Parses expression using tokens starting from iter and

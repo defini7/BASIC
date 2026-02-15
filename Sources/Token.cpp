@@ -1,4 +1,4 @@
-#include "Include/Token.hpp"
+#include "../Include/Token.hpp"
 #include <sstream>
 
 namespace Basic

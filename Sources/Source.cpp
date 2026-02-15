@@ -1,6 +1,6 @@
 ﻿#include <iostream>
 
-#include "Include/Interpreter.hpp"
+#include "../Include/Interpreter.hpp"
 
 int main()
 {
@@ -25,7 +25,14 @@ int main()
             try
             {
                 parser.Tokenise(input, tokens);
-                programmMode = interpreter.RunLine(tokens);
+
+                do
+                {
+                    programmMode = interpreter.RunLine(tokens);
+                }
+                while (!interpreter.IsEnd());
+
+                interpreter.Reset();
             }
             catch (const Basic::Exception_Iter& e)
             {

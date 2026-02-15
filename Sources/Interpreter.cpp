@@ -1,12 +1,10 @@
-#include "Include/Interpreter.hpp"
+#include "../Include/Interpreter.hpp"
 
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <cmath>
 #include <fstream>
-
-#define REAL_SIGN(v) (Real)((0.0l < v) - (v < 0.0l))
 
 namespace Basic
 {
@@ -235,9 +233,9 @@ namespace Basic
                         std::string lhs = UnwrapValue<String>(iter, arguments[1], "");
 
 						if (op.type != Operator::Type::Addition)
-                            throw Exception_Iter(iter, "Can perform only concatenation (+) with strings: " + lhs);
+                            throw Exception_Iter(iter, "Can perform concatenation (+) only with strings: " + lhs);
 
-                        std::string rhs = UnwrapValue<String>(iter, arguments[0], "Can only concatenate string with another string: " + lhs);
+                        std::string rhs = UnwrapValue<String>(iter, arguments[0], "Can concatenate only string with another string: " + lhs);
 
 						object = String{ lhs + rhs };
 					}
@@ -248,8 +246,10 @@ namespace Basic
 							{ \
 								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
 								{ \
-                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], ""); \
-                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], "Can only compare a " + name + " with another " + name); \
+                                    std::string error = "Expected " + name; \
+                                \
+                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
+                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
 								\
 									object = Numeric{ (Real)(lhs op rhs) }; \
 									return true; \
@@ -352,7 +352,7 @@ namespace Basic
 			CASE_FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
 			CASE_FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
 			CASE_FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(REAL_SIGN, SIGN, Sign, Numeric::MIN, Numeric::MAX)
+			CASE_FUNC(Real_Sign, SIGN, Sign, Numeric::MIN, Numeric::MAX)
 			CASE_FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
 
             case Token::Type::Keyword_Val:
@@ -386,16 +386,37 @@ namespace Basic
 		// Possibly could be a variable name so let's extract a value from it
 		if (std::holds_alternative<Symbol>(obj))
 		{
-			auto value = m_Variables.Get(std::get<Symbol>(obj).value);
+            std::string name = std::get<Symbol>(obj).value;
 
-			if (value)
-				obj = *value;
+			auto value = m_Variables.Get(name);
+
+            if (value)
+                obj = *value;
+            else
+                throw Exception_Iter(iter, "No such variable \"" + name + "\"");
 		}
 
 		return std::make_pair(obj, token);
 	}
 
-    Basic::Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
+    void Interpreter::Reset()
+    {
+        m_NextLine = -1;
+        m_LineOffset = 0;
+
+        m_Cursor = Token::Iter();
+        m_End = Token::Iter();
+
+        m_ForStack.clear();
+        m_IfStack.clear();
+
+        m_SkipElse = true;
+
+        m_ReturnLine = Result_Undefined;
+        m_ReturnPosInLine = Result_Undefined;
+    }
+
+    Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
     {
         int pos = 0;
 
@@ -419,7 +440,7 @@ namespace Basic
             int line = std::stoi(tokens[0].value);
 
             if (line < 0)
-                throw Basic::Exception_Iter(tokens.begin() + 1, "Invalid line number");
+                throw Exception_Iter(tokens.begin() + 1, "Invalid line number");
 
             m_Programm[line] = std::vector<Token>(tokens.begin() + 1, tokens.end());
 
@@ -842,8 +863,11 @@ namespace Basic
                 throw e;
             }
 		}
-		else
+        else
+        {
+            // Default value if no STEP
 			node.step = 1.0;
+        }
 
 		m_Variables.Set(node.varName, Numeric{ node.startValue });
 		m_ForStack.push_back(node);
@@ -878,7 +902,7 @@ namespace Basic
 		node.startValue += node.step;
 		m_Variables.Set(node.varName, Numeric{ node.startValue });
 
-		if (node.startValue <= node.endValue)
+		if ((node.startValue - node.endValue) * Real_Sign(node.step) <= Real(0))
 			m_NextLine = node.line;
         else
             m_ForStack.pop_back();
@@ -948,6 +972,9 @@ namespace Basic
     // RETURN
     void Interpreter::HandleReturn()
     {
+        // RETURN
+        ++m_Cursor;
+
         if (m_ReturnLine == Result_Undefined)
             throw Exception_Iter(m_Cursor, "RETURN without GOSUB");
 
@@ -961,6 +988,9 @@ namespace Basic
     // LIST
     void Interpreter::HandleList()
     {
+        // LIST
+        ++m_Cursor;
+
         for (const auto& [line, tokens] : m_Programm)
             std::cout << line << TokensToString(tokens) << std::endl;
     }
@@ -968,13 +998,18 @@ namespace Basic
     // NEW
     void Interpreter::HandleNew()
     {
+        // NEW
         ++m_Cursor;
+
         m_Programm.clear();
     }
 
     // RUN
     void Interpreter::HandleRun()
     {
+        // RUN
+        ++m_Cursor;
+
         auto line = m_Programm.begin();
 
         while (line != m_Programm.end())
@@ -997,6 +1032,8 @@ namespace Basic
                 throw GenerateException(line->second, TokensToString(line->second), e);
             }
         }
+
+        Reset();
     }
 
     // LOAD
