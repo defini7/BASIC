@@ -545,11 +545,11 @@ namespace Basic
                     {
                         m_NextLine = lineNumber;
                         m_LineOffset = std::distance(tokens.begin(), m_Cursor);
-						
+
                         return programmMode;
                     }
                     else
-                        ++m_Cursor;
+                        m_Cursor = end;
                 }
 
                 }

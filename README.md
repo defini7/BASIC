@@ -66,10 +66,8 @@ Store values in variables:
 ```basic
 LET x = 10
 LET name = "Alice"
-LET result = (a + b) * 2
+result = (a + b) * 2
 ```
-
-Unfortunately you can't declare variables without LET.
 
 ### IF ... THEN ... ELSE - Make Decisions
 Control program flow:

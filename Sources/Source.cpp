@@ -31,8 +31,6 @@ int main()
                     programmMode = interpreter.RunLine(tokens);
                 }
                 while (!interpreter.IsEnd());
-
-                interpreter.Reset();
             }
             catch (const Basic::Exception_Iter& e)
             {
@@ -43,6 +41,8 @@ int main()
 		{
 			std::cerr << e.what() << std::endl;
 		}
+
+        interpreter.Reset();
 
         if (!programmMode)
             std::cout << "Ok" << std::endl;
