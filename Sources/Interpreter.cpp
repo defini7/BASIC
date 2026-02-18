@@ -8,6 +8,16 @@
 
 namespace Basic
 {
+    bool operator||(const std::string& s1, const std::string& s2)
+    {
+        return !s1.empty() || !s2.empty();
+    }
+
+    bool operator&&(const std::string& s1, const std::string& s2)
+    {
+        return !s1.empty() && !s2.empty();
+    }
+
 	// Returns result of expression and position of next token after end of expression
     std::pair<Object, Token::Iter> Interpreter::ParseExpression(Token::Iter iter)
 	{
@@ -177,16 +187,16 @@ namespace Basic
 		{
 			switch (token.type)
 			{
-			case Token::Type::Literal_NumericBase10: solving.push_back(Numeric{ std::stold(token.value) }); break;
-			case Token::Type::Literal_NumericBase16: solving.push_back(Numeric{ (Real)std::stoll(token.value, nullptr, 16) }); break;
-			case Token::Type::Literal_NumericBase2:  solving.push_back(Numeric{ (Real)std::stoll(token.value, nullptr, 2) }); break;
+            case Token::Type::Literal_NumericBase10: solving.push_back(Object(Numeric{ std::stold(token.value) })); break;
+			case Token::Type::Literal_NumericBase16: solving.push_back(Object(Numeric{ (Real)std::stoll(token.value, nullptr, 16) })); break;
+			case Token::Type::Literal_NumericBase2:  solving.push_back(Object(Numeric{ (Real)std::stoll(token.value, nullptr, 2) })); break;
 
 			case Token::Type::Literal_String:
-				solving.push_back(String{ token.value });
+				solving.push_back(Object(String{ token.value }));
 			break;
 
 			case Token::Type::Symbol:
-				solving.push_back(Symbol{ token.value });
+				solving.push_back(Object(Symbol{ token.value }));
 			break;
 
 			case Token::Type::Operator:
@@ -233,7 +243,7 @@ namespace Basic
                         std::string lhs = UnwrapValue<String>(iter, arguments[1], "");
 
 						if (op.type != Operator::Type::Addition)
-                            throw Exception_Iter(iter, "Can perform concatenation (+) only with strings: " + lhs);
+                            throw Exception_Iter(iter, "Can't perform this operation with string: " + lhs);
 
                         std::string rhs = UnwrapValue<String>(iter, arguments[0], "Can concatenate only string with another string: " + lhs);
 
@@ -254,7 +264,7 @@ namespace Basic
 									object = Numeric{ (Real)(lhs op rhs) }; \
 									return true; \
 								} \
-								\
+							\
 								return false; \
 							}
 
@@ -278,18 +288,30 @@ namespace Basic
 							CASE_COMP(Greater, >)
 							CASE_COMP(LessEquals, <=)
 							CASE_COMP(GreaterEquals, >=)
+                            CASE_COMP(And, &&)
+                            CASE_COMP(Or, ||)
 
 						case Operator::Type::Assign:
 						{
 							if (!std::holds_alternative<Symbol>(arguments[1]))
                                 throw Exception_Iter(iter, "Can't create variable with invalid name");
 
+                            Object& value = arguments[0];
+
+                            if (std::holds_alternative<Symbol>(arguments[0]))
+                            {
+                                auto var = m_Variables.Get(std::get<Symbol>(arguments[0]).value);
+
+                                if (var)
+                                    value = *var;
+                            }
+
 							m_Variables.Set(
 								std::get<Symbol>(arguments[1]).value,
-								arguments[0]
+								value
 							);
 
-							object = arguments[0];
+							object = value;
 						}
 						break;
 
@@ -358,9 +380,9 @@ namespace Basic
             case Token::Type::Keyword_Val:
             {
                 if (solving.empty())
-                    throw Exception_Iter(iter, "Not enough arguments: VAL <arg>");
+                    throw Exception_Iter(iter + 1, "Not enough arguments: VAL <arg>");
 
-                std::string value = UnwrapValue<String>(iter, solving.back(), "Argument must be string: VAL <arg>");
+                std::string value = UnwrapValue<String>(iter + 1, solving.back(), "Argument must be string: VAL <arg>");
 
                 solving.pop_back();
                 solving.push_back(Numeric { std::stold(value) });
@@ -412,8 +434,7 @@ namespace Basic
 
         m_SkipElse = true;
 
-        m_ReturnLine = Result_Undefined;
-        m_ReturnPosInLine = Result_Undefined;
+        m_SubStack.clear();
     }
 
     Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
@@ -423,7 +444,7 @@ namespace Basic
         for (auto it = tokens.begin(); it != exception.iterator; ++it)
             pos += it->value.length() + 1;
 
-        return Basic::Exception(input, pos, exception.message);
+        return Basic::Exception(input, pos + 1, exception.message);
     }
 
     bool Interpreter::RunLine(const std::vector<Token>& tokens, int lineNumber)
@@ -459,6 +480,7 @@ namespace Basic
 		m_End = tokens.end();
 
 		m_Cursor = tokens.begin() + m_LineOffset;
+        m_LineOffset = 0;
 
 		bool newStmt = true;
 
@@ -474,7 +496,7 @@ namespace Basic
                 case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
                 case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
                 case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
-                case Token::Type::Keyword_Rem: NEW_STMT; return programmMode;
+                case Token::Type::Keyword_Rem: NEW_STMT; m_NextLine = Result_NextLine; return programmMode;
                 case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); return programmMode;
                 case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
                 case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
@@ -490,7 +512,7 @@ namespace Basic
                     node.posInLine = std::distance(tokens.begin(), m_Cursor);
                     node.line = lineNumber;
 
-                    m_LineOffset = node.posInLine + 1;
+                    
                 }
                 break;
 
@@ -517,8 +539,11 @@ namespace Basic
                     NEW_STMT;
                     HandleGoSub();
 
-                    m_ReturnLine = lineNumber;
-                    m_ReturnPosInLine = std::distance(tokens.begin(), m_Cursor);
+                    m_SubStack.push_back(
+                        SubNode{
+                            .line = lineNumber,
+                            .posInLine = (int)std::distance(tokens.begin(), m_Cursor)
+                        });
 
                     return programmMode;
                 }
@@ -559,8 +584,6 @@ namespace Basic
                 throw e;
             }
 		}
-
-		m_LineOffset = 0;
 
         return programmMode;
 	}
@@ -736,7 +759,7 @@ namespace Basic
                 m_SkipElse = false;
 
                 // Searching for the corresponding ELSE block
-                while (iter != m_End && iter->type != Token::Type::Colon)
+                while (iter != m_End)
                 {
                     if (iter->type == Token::Type::Keyword_If)
                         ++elseBalancer;
@@ -975,14 +998,15 @@ namespace Basic
         // RETURN
         ++m_Cursor;
 
-        if (m_ReturnLine == Result_Undefined)
+        if (m_SubStack.empty())
             throw Exception_Iter(m_Cursor, "RETURN without GOSUB");
 
-        m_NextLine = m_ReturnLine;
-        m_LineOffset = m_ReturnPosInLine;
+        SubNode& node = m_SubStack.back();
 
-        m_ReturnLine = Result_Undefined;
-        m_ReturnPosInLine = Result_Undefined;
+        m_NextLine = node.line;
+        m_LineOffset = node.posInLine;
+
+        m_SubStack.pop_back();
     }
 
     // LIST
@@ -1018,16 +1042,16 @@ namespace Basic
             {
                 RunLine(line->second, line->first);
 
-                if (m_NextLine == Basic::Interpreter::Result_Terminate)
+                if (m_NextLine == Result_Terminate)
                     line = m_Programm.end();
-                else if (m_NextLine == Basic::Interpreter::Result_NextLine)
+                else if (m_NextLine == Result_NextLine)
                     line++;
                 else
                     line = m_Programm.find(m_NextLine);
 
                 // line == m_Programm.end() is unreachable
             }
-            catch (const Basic::Exception_Iter& e)
+            catch (const Exception_Iter& e)
             {
                 throw GenerateException(line->second, TokensToString(line->second), e);
             }

@@ -21,7 +21,9 @@ namespace Basic
 			LessEquals,
 			GreaterEquals,
             Assign,
-            Power
+            Power,
+			And,
+			Or
 		};
 
 		Type type;

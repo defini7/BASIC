@@ -26,7 +26,7 @@ namespace Basic
 		constexpr auto BinDigits = Create("01");
         constexpr auto Prefixes = Create("hoHO");
 		constexpr auto Whitespaces = Create(" \t\n\r\v");
-		constexpr auto Symbols = Create("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789_.");
+		constexpr auto Symbols = Create("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789_.$?");
         constexpr auto Operators = Create("+-*/=<>^");
 		constexpr auto Quotes = Create("'\"");
 	}

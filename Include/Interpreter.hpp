@@ -16,7 +16,17 @@ namespace Basic
 		return Real(int(0 < v) - int(v < 0));
 	}
 
+	bool operator||(const std::string& s1, const std::string& s2);
+	bool operator&&(const std::string& s1, const std::string& s2);
+
     Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception);
+
+	enum Result
+	{
+		Result_Undefined = -3,
+		Result_Terminate = -2,
+		Result_NextLine = -1
+	};
 
 	struct ForNode
 	{
@@ -30,16 +40,15 @@ namespace Basic
 		Real step;
 	};
 
+	struct SubNode
+	{
+		int line = Result_Undefined;
+		int posInLine = Result_Undefined;
+	};
+
 	class Interpreter
 	{
 	public:
-        enum Result
-        {
-            Result_Undefined = -3,
-            Result_Terminate = -2,
-            Result_NextLine = -1
-        };
-
 		Interpreter() = default;
 
 	public:
@@ -129,8 +138,7 @@ namespace Basic
 
         bool m_SkipElse = true;
 
-        int m_ReturnLine = Result_Undefined;
-        int m_ReturnPosInLine = Result_Undefined;
+		std::deque<SubNode> m_SubStack;
 
 	};
 }

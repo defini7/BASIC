@@ -96,7 +96,11 @@ namespace Basic
 					StartToken(Token::Type::Semicolon);
 
 				else
+				{
+					// In MSX BASIC you can write any symbols in comments (i.e. after REM keyword)
+					// but because comments are handled at interpreter stage you can't do the same thing here
                     throw Exception(input, std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
+				}
 
 				currentChar++;
 			}
@@ -183,7 +187,10 @@ namespace Basic
 							// proceed with the current operator
 
 							if (s_Operators.contains(token.value))
+							{
+								String_ToUpper(token.value);
 								stateNext = State::CompleteToken;
+							}
 							else
 							{
 								// If on the current stage we still can't find an operator
@@ -258,6 +265,9 @@ namespace Basic
 
 					#undef KEYWORD
 
+						if (token.value == "AND" || token.value == "OR")
+							token.type = Token::Type::Operator;
+
 						if (currentChar == input.end())
 							goto complete_token;
 
@@ -300,17 +310,19 @@ namespace Basic
 	std::unordered_map<std::string, Operator> Parser::s_Operators =
 	{
 		{"=", { Operator::Type::Assign, 0, 2 } },
-		{"==", { Operator::Type::Equals, 1, 2 } },
-		{"<>", { Operator::Type::NotEquals, 1, 2 } },
-		{"<", { Operator::Type::Less, 1, 2 } },
-		{">", { Operator::Type::Greater, 1, 2 } },
-		{"<=", { Operator::Type::LessEquals, 1, 2 } },
-		{">=", { Operator::Type::GreaterEquals, 1, 2 } },
-		{"-", { Operator::Type::Subtraction, 2, 2 } },
-		{"+", { Operator::Type::Addition, 2, 2 } },
-		{"*", { Operator::Type::Multiplication, 3, 2 } },
-		{"/", { Operator::Type::Division, 3, 2 } },
-        {"^", { Operator::Type::Power, 4, 2 } },
+		{"AND", { Operator::Type::And, 1, 2 } },
+		{"OR", { Operator::Type::Or, 2, 2 } },
+		{"==", { Operator::Type::Equals, 3, 2 } },
+		{"<>", { Operator::Type::NotEquals, 3, 2 } },
+		{"<", { Operator::Type::Less, 3, 2 } },
+		{">", { Operator::Type::Greater, 3, 2 } },
+		{"<=", { Operator::Type::LessEquals, 3, 2 } },
+		{">=", { Operator::Type::GreaterEquals, 3, 2 } },
+		{"-", { Operator::Type::Subtraction, 4, 2 } },
+		{"+", { Operator::Type::Addition, 4, 2 } },
+		{"*", { Operator::Type::Multiplication, 5, 2 } },
+		{"/", { Operator::Type::Division, 5, 2 } },
+        {"^", { Operator::Type::Power, 6, 2 } },
 
 		{"u-", { Operator::Type::Subtraction, Operator::MAX_PRECEDENCE, 1 } },
 		{"u+", { Operator::Type::Addition, Operator::MAX_PRECEDENCE, 1 } },
