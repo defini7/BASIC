@@ -36,6 +36,10 @@ int main()
             {
                 throw Basic::GenerateException(tokens, input, e);
             }
+            catch (int)
+            {
+
+            }
 		}
         catch (const Basic::Exception& e)
 		{

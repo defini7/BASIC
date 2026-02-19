@@ -71,7 +71,7 @@ result = (a + b) * 2
 
 ### IF ... THEN ... ELSE - Make Decisions
 Control program flow:
-```
+```basic
 IF x > 10 THEN PRINT "x is big"
 IF score >= 90 THEN grade = "A" ELSE grade = "B"
 IF a == b THEN PRINT "Equal" ELSE PRINT "Different"

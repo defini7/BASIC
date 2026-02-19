@@ -14,4 +14,9 @@ namespace Basic
 
 		return m_Values[name];
 	}
+
+	void VarStorage::Clear()
+	{
+		m_Values.clear();
+	}
 }

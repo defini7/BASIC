@@ -251,30 +251,27 @@ namespace Basic
 					}
 					else
 					{
-						#define DEFINE_CHECK_TYPES(op) \
-							auto CheckTypes = [&]<class T>(const std::string& name) \
-							{ \
-								if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
-								{ \
-                                    std::string error = "Expected " + name; \
-                                \
-                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
-                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
-								\
-									object = Numeric{ (Real)(lhs op rhs) }; \
-									return true; \
-								} \
-							\
-								return false; \
-							}
-
 						#define CASE_COMP(sign, op) \
 							case Operator::Type::sign: \
 							{ \
-								DEFINE_CHECK_TYPES(op); \
-							\
-								if (CheckTypes.operator()<Numeric>("number")) {} \
-								else if (CheckTypes.operator()<String>("string")) {} \
+								auto CheckTypes = [&]<class T>(const std::string& name) \
+							    { \
+								    if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
+								    { \
+                                        std::string error = "Expected " + name; \
+                                    \
+                                        const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
+                                        const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
+								    \
+									    object = Numeric{ (Real)(lhs op rhs) }; \
+									    return true; \
+								    } \
+							    \
+								    return false; \
+							    }; \
+					        \
+                                if (CheckTypes.operator()<String>("string")) {} \
+								else if (CheckTypes.operator()<Numeric>("number")) {} \
                                 else \
 									throw Exception_Iter(iter, "Can't compare 2 values"); \
 							} \
@@ -282,7 +279,7 @@ namespace Basic
 
 						switch (op.type)
 						{
-							CASE_COMP(Equals, ==)
+                            CASE_COMP(Equals, ==)
 							CASE_COMP(NotEquals, !=)
 							CASE_COMP(Less, <)
 							CASE_COMP(Greater, >)
@@ -434,7 +431,7 @@ namespace Basic
 
         m_SkipElse = true;
 
-        m_SubStack.clear();
+        //m_SubStack.clear();
     }
 
     Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
@@ -551,8 +548,18 @@ namespace Basic
                 case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); return programmMode;
                 case Token::Type::Keyword_List: NEW_STMT; HandleList(); return programmMode;
                 case Token::Type::Keyword_New: NEW_STMT; HandleNew(); return programmMode;
-                case Token::Type::Keyword_Run: NEW_STMT; HandleRun(); return programmMode;
                 case Token::Type::Keyword_Load: NEW_STMT; HandleLoad(); return programmMode;
+
+                case Token::Type::Keyword_Run:
+                {
+                    NEW_STMT;
+                    HandleRun();
+
+                    m_NextLine = Result_Terminate;
+
+                    return programmMode;
+                }
+                break;
 
                 default:
                 {
@@ -1026,6 +1033,7 @@ namespace Basic
         ++m_Cursor;
 
         m_Programm.clear();
+        m_Variables.Clear();
     }
 
     // RUN
@@ -1033,6 +1041,8 @@ namespace Basic
     {
         // RUN
         ++m_Cursor;
+
+        Reset();
 
         auto line = m_Programm.begin();
 
@@ -1048,8 +1058,6 @@ namespace Basic
                     line++;
                 else
                     line = m_Programm.find(m_NextLine);
-
-                // line == m_Programm.end() is unreachable
             }
             catch (const Exception_Iter& e)
             {
@@ -1057,7 +1065,7 @@ namespace Basic
             }
         }
 
-        Reset();
+        throw 0;
     }
 
     // LOAD

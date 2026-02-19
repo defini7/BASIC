@@ -38,6 +38,8 @@ namespace Basic
 
 		std::optional<std::reference_wrapper<Object>> Get(const std::string& name);
 
+		void Clear();
+
 	private:
 		std::unordered_map<std::string, Object> m_Values;
 
