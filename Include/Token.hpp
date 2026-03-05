@@ -47,6 +47,7 @@ namespace Basic
 			Keyword_ArcTan,
 			Keyword_Sqrt,
 			Keyword_Log,
+            Keyword_Ln,
 			Keyword_Exp,
 			Keyword_Abs,
 			Keyword_Sign,
@@ -66,7 +67,6 @@ namespace Basic
 		Token() = default;
 		Token(Type type, const std::string_view value = "");
 
-		std::string ToString() const;
         bool IsFunction() const;
 
 		Type type = Type::None;

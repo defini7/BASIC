@@ -74,6 +74,7 @@ namespace Basic
 			case Token::Type::Keyword_ArcTan:
 			case Token::Type::Keyword_Sqrt:
 			case Token::Type::Keyword_Log:
+            case Token::Type::Keyword_Ln:
 			case Token::Type::Keyword_Exp:
 			case Token::Type::Keyword_Abs:
 			case Token::Type::Keyword_Sign:
@@ -236,108 +237,106 @@ namespace Basic
 				{
 					// Handle binary operators
 
-					if (std::holds_alternative<String>(arguments[1]))
-					{
-						// You can concatenate a string with another string
+                    #define CASE_COMP(sign, op) \
+                        case Operator::Type::sign: \
+                        { \
+                            auto CheckTypes = [&]<class T>(const std::string& name) \
+                            { \
+                                if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
+                                { \
+                                    std::string error = "Expected " + name; \
+                                \
+                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
+                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
+                                \
+                                    object = Numeric{ (Real)(lhs op rhs) }; \
+                                    return true; \
+                                } \
+                            \
+                                return false; \
+                            }; \
+                        \
+                            if (CheckTypes.operator()<String>("string")) {} \
+                            else if (CheckTypes.operator()<Numeric>("number")) {} \
+                            else \
+                                throw Exception_Iter(iter, "Can't compare 2 values"); \
+                        } \
+                        break;
 
-                        std::string lhs = UnwrapValue<String>(iter, arguments[1], "");
+                    switch (op.type)
+                    {
+                        CASE_COMP(Equals, ==)
+                        CASE_COMP(NotEquals, !=)
+                        CASE_COMP(Less, <)
+                        CASE_COMP(Greater, >)
+                        CASE_COMP(LessEquals, <=)
+                        CASE_COMP(GreaterEquals, >=)
+                        CASE_COMP(And, &&)
+                        CASE_COMP(Or, ||)
 
-						if (op.type != Operator::Type::Addition)
-                            throw Exception_Iter(iter, "Can't perform this operation with string: " + lhs);
+                    case Operator::Type::Assign:
+                    {
+                        if (!std::holds_alternative<Symbol>(arguments[1]))
+                            throw Exception_Iter(iter, "Can't create variable with invalid name");
 
-                        std::string rhs = UnwrapValue<String>(iter, arguments[0], "Can concatenate only string with another string: " + lhs);
+                        Object& value = arguments[0];
 
-						object = String{ lhs + rhs };
-					}
-					else
-					{
-						#define CASE_COMP(sign, op) \
-							case Operator::Type::sign: \
-							{ \
-								auto CheckTypes = [&]<class T>(const std::string& name) \
-							    { \
-								    if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
-								    { \
-                                        std::string error = "Expected " + name; \
-                                    \
-                                        const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
-                                        const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
-								    \
-									    object = Numeric{ (Real)(lhs op rhs) }; \
-									    return true; \
-								    } \
-							    \
-								    return false; \
-							    }; \
-					        \
-                                if (CheckTypes.operator()<String>("string")) {} \
-								else if (CheckTypes.operator()<Numeric>("number")) {} \
-                                else \
-									throw Exception_Iter(iter, "Can't compare 2 values"); \
-							} \
-							break;
+                        if (std::holds_alternative<Symbol>(arguments[0]))
+                        {
+                            auto var = m_Variables.Get(std::get<Symbol>(arguments[0]).value);
 
-						switch (op.type)
-						{
-                            CASE_COMP(Equals, ==)
-							CASE_COMP(NotEquals, !=)
-							CASE_COMP(Less, <)
-							CASE_COMP(Greater, >)
-							CASE_COMP(LessEquals, <=)
-							CASE_COMP(GreaterEquals, >=)
-                            CASE_COMP(And, &&)
-                            CASE_COMP(Or, ||)
+                            if (var)
+                                value = *var;
+                        }
 
-						case Operator::Type::Assign:
-						{
-							if (!std::holds_alternative<Symbol>(arguments[1]))
-                                throw Exception_Iter(iter, "Can't create variable with invalid name");
+                        m_Variables.Set(
+                            std::get<Symbol>(arguments[1]).value,
+                            value
+                        );
 
-                            Object& value = arguments[0];
+                        object = value;
+                    }
+                    break;
 
-                            if (std::holds_alternative<Symbol>(arguments[0]))
+                    default:
+                    {
+                        const auto lhs = UnwrapValue(iter, arguments[1]);
+                        const auto rhs = UnwrapValue(iter, arguments[0]);
+
+                        if (std::holds_alternative<Numeric>(lhs) && std::holds_alternative<Numeric>(rhs))
+                        {
+                            Real lhsVal = std::get<Numeric>(lhs).value;
+                            Real rhsVal = std::get<Numeric>(rhs).value;
+
+                            switch (op.type)
                             {
-                                auto var = m_Variables.Get(std::get<Symbol>(arguments[0]).value);
-
-                                if (var)
-                                    value = *var;
+                            case Operator::Type::Subtraction:    object = Numeric{ lhsVal - rhsVal };     break;
+                            case Operator::Type::Addition:       object = Numeric{ lhsVal + rhsVal };     break;
+                            case Operator::Type::Multiplication: object = Numeric{ lhsVal * rhsVal };     break;
+                            case Operator::Type::Division:       object = Numeric{ lhsVal / rhsVal };     break;
+                            case Operator::Type::Power:          object = Numeric{ pow(lhsVal, rhsVal) }; break;
                             }
+                        }
+                        else if (std::holds_alternative<String>(lhs) && std::holds_alternative<String>(rhs))
+                        {
+                            std::string lhsVal = std::get<String>(lhs).value;
+                            std::string rhsVal = std::get<String>(rhs).value;
 
-							m_Variables.Set(
-								std::get<Symbol>(arguments[1]).value,
-								value
-							);
+                            if (op.type == Operator::Type::Addition) object = String{ lhsVal + rhsVal };
+                            else throw Exception_Iter(iter+1, "Can only concatenate strings");
+                        }
+                        else
+                            throw Exception_Iter(iter+1, "Can't perform binary operations on values with different types");
+                    }
 
-							object = value;
-						}
-						break;
+                    };
 
-						default:
-						{
-                            const auto lhs = UnwrapValue<Numeric>(iter, arguments[1], "You must have numeric values to perform arithmetic operations");
-                            const auto rhs = UnwrapValue<Numeric>(iter, arguments[0], "You must have numeric values to perform arithmetic operations");
-
-							switch (op.type)
-							{
-                            case Operator::Type::Subtraction:    object = Numeric{ lhs - rhs };     break;
-                            case Operator::Type::Addition:       object = Numeric{ lhs + rhs };     break;
-                            case Operator::Type::Multiplication: object = Numeric{ lhs * rhs };     break;
-                            case Operator::Type::Division:       object = Numeric{ lhs / rhs };     break;
-                            case Operator::Type::Power:          object = Numeric{ pow(lhs, rhs) }; break;
-							}
-						}
-
-						};
-
-						#undef DEFINE_CHECK_TYPES
-						#undef CASE_COMP
+                    #undef DEFINE_CHECK_TYPES
+                    #undef CASE_COMP
 					}
 				}
-				break;
 
-				}
-
-				solving.push_back(object);
+                solving.push_back(object);
 			}
 			break;
 
@@ -369,6 +368,7 @@ namespace Basic
 			CASE_FUNC(atan, ARCTAN, ArcTan, -3.145926535 * 0.5, 3.145926535 * 0.5)
 
 			CASE_FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
+            CASE_FUNC(log, LN, Ln, Numeric::EPS, Numeric::MAX)
 			CASE_FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
 			CASE_FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
 			CASE_FUNC(Real_Sign, SIGN, Sign, Numeric::MIN, Numeric::MAX)

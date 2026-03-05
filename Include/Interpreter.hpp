@@ -71,7 +71,7 @@ namespace Basic
 
 	private:
 		template <class T>
-        auto UnwrapValue(Token::Iter iter, const Object& obj, const std::string& error = "")
+        auto UnwrapValue(Token::Iter iter, const Object& obj, const std::string& error)
 		{
 			if (std::holds_alternative<Symbol>(obj))
 			{
@@ -105,6 +105,28 @@ namespace Basic
 
 			return std::get<T>(obj).value;
 		}
+
+        Object UnwrapValue(Token::Iter iter, const Object& obj)
+        {
+            if (std::holds_alternative<Symbol>(obj))
+            {
+                const std::string& name = std::get<Symbol>(obj).value;
+
+                // Let's check if a variable with the given name exists
+                const auto variable = m_Variables.Get(name);
+
+                if (variable)
+                {
+                    // The variable exists so return its value
+                    return variable.value().get();
+                }
+
+                // Couldn't find the variable so assume it was an invalid symbol
+                throw Exception_Iter(iter, "Unexpected symbol: " + name);
+            }
+
+            return obj;
+        }
 
 		void HandlePrint();
 		void HandleInput();

@@ -248,6 +248,7 @@ namespace Basic
                         KEYWORD("ARCCOS", ArcCos);
                         KEYWORD("ARCTAN", ArcTan);
                         KEYWORD("SQR", Sqrt);
+                        KEYWORD("LN", Ln);
                         KEYWORD("LOG", Log);
                         KEYWORD("EXP", Exp);
                         KEYWORD("ABS", Abs);
