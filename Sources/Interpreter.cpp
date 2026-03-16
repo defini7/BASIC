@@ -1115,6 +1115,19 @@ namespace Basic
 
         m_Programm.clear();
 
+        // Save state
+
+        int nextLine = m_NextLine;
+        int lineOffset = m_LineOffset;
+
+        Token::Iter cursor = m_Cursor;
+        Token::Iter end = m_End;
+
+        auto forStack = m_ForStack;
+        auto ifStack = m_IfStack;
+
+        bool skipElse = m_SkipElse;
+
         Parser parser;
 
         while (!ifs.eof())
@@ -1130,7 +1143,18 @@ namespace Basic
 
         ifs.close();
 
+        // Restore state
+
+        m_NextLine = nextLine;
+        m_LineOffset = lineOffset;
+
         // <path>
-        ++m_Cursor;
+        m_Cursor = cursor + 1;
+        m_End = end;
+
+        m_ForStack = forStack;
+        m_IfStack = ifStack;
+
+        m_SkipElse = skipElse;
     }
 }
