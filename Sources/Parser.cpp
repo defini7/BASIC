@@ -24,6 +24,58 @@ namespace Basic
 		int parenthesesBalancer = 0;
 		int quotesBalancer = 0;
 
+		auto ClassifyKeyword = [&]()
+		{
+			String_ToUpper(token.value);
+
+			static const std::unordered_map<std::string, Token::Type> s_KeywordMap =
+			{
+				{"PRINT", Token::Type::Keyword_Print},
+				{"INPUT", Token::Type::Keyword_Input},
+				{"CLS", Token::Type::Keyword_Cls},
+				{"LET", Token::Type::Keyword_Let},
+				{"REM", Token::Type::Keyword_Rem},
+				{"GOTO", Token::Type::Keyword_Goto},
+				{"IF", Token::Type::Keyword_If},
+				{"THEN", Token::Type::Keyword_Then},
+				{"ELSE", Token::Type::Keyword_Else},
+				{"FOR", Token::Type::Keyword_For},
+				{"TO", Token::Type::Keyword_To},
+				{"STEP", Token::Type::Keyword_Step},
+				{"NEXT", Token::Type::Keyword_Next},
+				{"SLEEP", Token::Type::Keyword_Sleep},
+				{"SIN", Token::Type::Keyword_Sin},
+				{"COS", Token::Type::Keyword_Cos},
+				{"TAN", Token::Type::Keyword_Tan},
+				{"ARCSIN", Token::Type::Keyword_ArcSin},
+				{"ARCCOS", Token::Type::Keyword_ArcCos},
+				{"ARCTAN", Token::Type::Keyword_ArcTan},
+				{"SQR", Token::Type::Keyword_Sqrt},
+				{"LN", Token::Type::Keyword_Ln},
+				{"LOG", Token::Type::Keyword_Log},
+				{"EXP", Token::Type::Keyword_Exp},
+				{"ABS", Token::Type::Keyword_Abs},
+				{"SGN", Token::Type::Keyword_Sign},
+				{"INT", Token::Type::Keyword_Int},
+				{"RND", Token::Type::Keyword_Random},
+				{"END", Token::Type::Keyword_End},
+				{"GOSUB", Token::Type::Keyword_GoSub},
+				{"RETURN", Token::Type::Keyword_Return},
+				{"VAL", Token::Type::Keyword_Val},
+				{"LIST", Token::Type::Keyword_List},
+				{"RUN", Token::Type::Keyword_Run},
+				{"NEW", Token::Type::Keyword_New},
+				{"LOAD", Token::Type::Keyword_Load},
+				{"AND", Token::Type::Operator},
+				{"OR", Token::Type::Operator}
+			};
+
+			auto it = s_KeywordMap.find(token.value);
+
+			if (it != s_KeywordMap.end())
+				token.type = it->second;
+		};
+
 		auto StartToken = [&](Token::Type type, State nextState = State::CompleteToken, bool push = true)
 			{
 				token.type = type;
@@ -112,14 +164,37 @@ namespace Basic
 				{
 				case State::Literal_NumericBaseUnknown:
 				{
-				#define Prepare(base) do { token.type = Token::Type::Literal_NumericBase##base; stateNext = State::Literal_NumericBase##base; } while (0)
+					auto SetNumericBase = [&](int base)
+					{
+						switch (base)
+						{
+						case 2:
+							token.type = Token::Type::Literal_NumericBase2;
+							stateNext = State::Literal_NumericBase2;
+							break;
+						case 8:
+							token.type = Token::Type::Literal_NumericBase8;
+							stateNext = State::Literal_NumericBase8;
+							break;
+						case 10:
+							token.type = Token::Type::Literal_NumericBase10;
+							stateNext = State::Literal_NumericBase10;
+							break;
+						case 16:
+							token.type = Token::Type::Literal_NumericBase16;
+							stateNext = State::Literal_NumericBase16;
+							break;
+						}
+					};
 
 					if (Guard::Prefixes[*currentChar])
 					{
 						// Determine base of numeric literal
 
-						if (*currentChar == 'h' || *currentChar == 'H') Prepare(16);
-						else if (*currentChar == 'o' || *currentChar == 'O') Prepare(8);
+						if (*currentChar == 'h' || *currentChar == 'H')
+							SetNumericBase(16);
+						else if (*currentChar == 'o' || *currentChar == 'O')
+							SetNumericBase(8);
 
 						currentChar++;
 					}
@@ -129,35 +204,66 @@ namespace Basic
 						
 						if (*currentChar == '0' || *currentChar == '1')
 						{
-							Prepare(2);
+							SetNumericBase(2);
 							AppendChar(State::Literal_NumericBase2);
 						}
 						else
-                            throw Exception(input, std::distance(input.begin(), currentChar), "Unknown prefix for numeric literal");
+							throw Exception(input, std::distance(input.begin(), currentChar), "Unknown prefix for numeric literal");
 					}
-
-				#undef Prepare
 				}
 				break;
 
-			#define CASE_LITERAL_NUMERIC_BASE(base, name) \
-				case State::Literal_NumericBase##base: \
-				{ \
-					if (Guard::name##Digits[*currentChar]) \
-						AppendChar(State::Literal_NumericBase##base); \
-					else \
-					{ \
-						if (Guard::Symbols[*currentChar]) \
-                            throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol"); \
-						stateNext = State::CompleteToken; \
-					} \
-				} \
+				case State::Literal_NumericBase16:
+				{
+					if (Guard::HexDigits[*currentChar])
+						AppendChar(State::Literal_NumericBase16);
+					else
+					{
+						if (Guard::Symbols[*currentChar])
+							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+						stateNext = State::CompleteToken;
+					}
+				}
 				break;
 
-				CASE_LITERAL_NUMERIC_BASE(16, Hex)
-				CASE_LITERAL_NUMERIC_BASE(10, Dec)
-				CASE_LITERAL_NUMERIC_BASE(8, Oct)
-				CASE_LITERAL_NUMERIC_BASE(2, Bin)
+				case State::Literal_NumericBase10:
+				{
+					if (Guard::DecDigits[*currentChar])
+						AppendChar(State::Literal_NumericBase10);
+					else
+					{
+						if (Guard::Symbols[*currentChar])
+							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+						stateNext = State::CompleteToken;
+					}
+				}
+				break;
+
+				case State::Literal_NumericBase8:
+				{
+					if (Guard::OctDigits[*currentChar])
+						AppendChar(State::Literal_NumericBase8);
+					else
+					{
+						if (Guard::Symbols[*currentChar])
+							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+						stateNext = State::CompleteToken;
+					}
+				}
+				break;
+
+				case State::Literal_NumericBase2:
+				{
+					if (Guard::BinDigits[*currentChar])
+						AppendChar(State::Literal_NumericBase2);
+					else
+					{
+						if (Guard::Symbols[*currentChar])
+							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+						stateNext = State::CompleteToken;
+					}
+				}
+				break;
 
 				case State::Literal_String:
 				{
@@ -222,55 +328,13 @@ namespace Basic
 						AppendChar(State::Symbol);
 					else
 					{
-					parse_keyword:
-                        String_ToUpper(token.value);
-
-					#define KEYWORD(signature, name) if (token.value == signature) token.type = Token::Type::Keyword_##name
-
-                        KEYWORD("PRINT", Print);
-                        KEYWORD("INPUT", Input);
-                        KEYWORD("CLS", Cls);
-                        KEYWORD("LET", Let);
-                        KEYWORD("REM", Rem);
-                        KEYWORD("GOTO", Goto);
-                        KEYWORD("IF", If);
-                        KEYWORD("THEN", Then);
-                        KEYWORD("ELSE", Else);
-                        KEYWORD("FOR", For);
-                        KEYWORD("TO", To);
-                        KEYWORD("STEP", Step);
-                        KEYWORD("NEXT", Next);
-                        KEYWORD("SLEEP", Sleep);
-                        KEYWORD("SIN", Sin);
-                        KEYWORD("COS", Cos);
-                        KEYWORD("TAN", Tan);
-                        KEYWORD("ARCSIN", ArcSin);
-                        KEYWORD("ARCCOS", ArcCos);
-                        KEYWORD("ARCTAN", ArcTan);
-                        KEYWORD("SQR", Sqrt);
-                        KEYWORD("LN", Ln);
-                        KEYWORD("LOG", Log);
-                        KEYWORD("EXP", Exp);
-                        KEYWORD("ABS", Abs);
-                        KEYWORD("SGN", Sign);
-                        KEYWORD("INT", Int);
-                        KEYWORD("RND", Random);
-                        KEYWORD("END", End);
-                        KEYWORD("GOSUB", GoSub);
-                        KEYWORD("RETURN", Return);
-                        KEYWORD("VAL", Val);
-                        KEYWORD("LIST", List);
-                        KEYWORD("RUN", Run);
-                        KEYWORD("NEW", New);
-                        KEYWORD("LOAD", Load);
-
-					#undef KEYWORD
-
-						if (token.value == "AND" || token.value == "OR")
-							token.type = Token::Type::Operator;
+						ClassifyKeyword();
 
 						if (currentChar == input.end())
-							goto complete_token;
+						{
+							// To make sure that the last token is pushed if we reached the end of the string
+							currentChar = input.end() - 1;
+						}
 
 						stateNext = State::CompleteToken;
 					}
@@ -279,7 +343,6 @@ namespace Basic
 
 				case State::CompleteToken:
 				{
-				complete_token:
 					stateNext = State::NewToken;
 					tokens.push_back(token);
 
@@ -294,8 +357,8 @@ namespace Basic
 			stateNow = stateNext;
 		}
 
-		if (stateNext == State::Symbol)
-			goto parse_keyword;
+		if (stateNow == State::Symbol)
+			ClassifyKeyword();
 
 		if (parenthesesBalancer != 0)
             throw Exception(input, std::distance(input.begin(), currentChar), "Parentheses were not balanced");

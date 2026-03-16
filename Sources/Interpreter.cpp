@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <functional>
 
 namespace Basic
 {
@@ -29,6 +30,8 @@ namespace Basic
 		Token prev(Token::Type::None);
 
 		auto token = iter;
+		bool stop = false;
+
 		for (; token != m_End; ++token)
 		{
 			switch (token->type)
@@ -64,7 +67,8 @@ namespace Basic
             case Token::Type::Keyword_Load:
 			case Token::Type::Semicolon:
 			case Token::Type::Colon:
-				goto out;
+				stop = true;
+				break;
 
 			case Token::Type::Keyword_Sin:
 			case Token::Type::Keyword_Cos:
@@ -172,10 +176,11 @@ namespace Basic
 
 			}
 
+			if (stop)
+				break;
+
 			prev = *token;
 		}
-
-	out:
 
 		// Drain out the holding stack at the end
 		while (!holding.empty())
@@ -183,6 +188,23 @@ namespace Basic
 			output.push_back(holding.back());
 			holding.pop_back();
 		}
+
+        auto ApplyFunc = [&](std::function<long double(long double)> func, const std::string& signature, Real bottom, Real top)
+            {
+                if (solving.empty())
+                    throw Exception_Iter(iter, "Not enough arguments: " + signature + " <arg>");
+
+                if (!std::holds_alternative<Numeric>(solving.back()))
+                    throw Exception_Iter(iter, "Argument must be numeric: " + signature + " <arg>");
+
+                Real value = std::get<Numeric>(solving.back()).value;
+
+                if (value < bottom || value > top)
+                    throw Exception_Iter(iter, "Argument must be within the range: [" + std::to_string(bottom) + ", " + std::to_string(top) + "]");
+
+                solving.pop_back();
+                solving.push_back(Numeric{ func(value) });
+            };
 
 		for (const auto& token : output)
 		{
@@ -237,42 +259,69 @@ namespace Basic
 				{
 					// Handle binary operators
 
-                    #define CASE_COMP(sign, op) \
-                        case Operator::Type::sign: \
-                        { \
-                            auto CheckTypes = [&]<class T>(const std::string& name) \
-                            { \
-                                if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1])) \
-                                { \
-                                    std::string error = "Expected " + name; \
-                                \
-                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], error); \
-                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], error); \
-                                \
-                                    object = Numeric{ (Real)(lhs op rhs) }; \
-                                    return true; \
-                                } \
-                            \
-                                return false; \
-                            }; \
-                        \
-                            if (CheckTypes.operator()<String>("string")) {} \
-                            else if (CheckTypes.operator()<Numeric>("number")) {} \
-                            else \
-                                throw Exception_Iter(iter, "Can't compare 2 values"); \
-                        } \
-                        break;
-
                     switch (op.type)
                     {
-                        CASE_COMP(Equals, ==)
-                        CASE_COMP(NotEquals, !=)
-                        CASE_COMP(Less, <)
-                        CASE_COMP(Greater, >)
-                        CASE_COMP(LessEquals, <=)
-                        CASE_COMP(GreaterEquals, >=)
-                        CASE_COMP(And, &&)
-                        CASE_COMP(Or, ||)
+                    case Operator::Type::Equals:
+                    case Operator::Type::NotEquals:
+                    case Operator::Type::Less:
+                    case Operator::Type::Greater:
+                    case Operator::Type::LessEquals:
+                    case Operator::Type::GreaterEquals:
+                    {
+                        auto Compare = [&](auto comparator)
+                        {
+                            auto CheckTypes = [&]<class T>(const std::string& name)
+                            {
+                                if (std::holds_alternative<T>(arguments[1]) || std::holds_alternative<Symbol>(arguments[1]))
+                                {
+                                    std::string error = "Expected " + name;
+
+                                    const auto lhs = UnwrapValue<T>(iter, arguments[1], error);
+                                    const auto rhs = UnwrapValue<T>(iter, arguments[0], error);
+
+                                    object = Numeric{ (Real)comparator(lhs, rhs) };
+                                    return true;
+                                }
+
+                                return false;
+                            };
+
+                            if (CheckTypes.operator()<String>("string") || CheckTypes.operator()<Numeric>("number"))
+                                return;
+
+                            throw Exception_Iter(iter, "Can't compare 2 values");
+                        };
+
+                        if (op.type == Operator::Type::Equals)
+                            Compare(std::equal_to<>());
+                        else if (op.type == Operator::Type::NotEquals)
+                            Compare(std::not_equal_to<>());
+                        else if (op.type == Operator::Type::Less)
+                            Compare(std::less<>());
+                        else if (op.type == Operator::Type::Greater)
+                            Compare(std::greater<>());
+                        else if (op.type == Operator::Type::LessEquals)
+                            Compare(std::less_equal<>());
+                        else if (op.type == Operator::Type::GreaterEquals)
+                            Compare(std::greater_equal<>());
+                    }
+                    break;
+
+                    case Operator::Type::And:
+                    {
+                        auto lhs = UnwrapValue<Numeric>(iter, arguments[1], "Expected number");
+                        auto rhs = UnwrapValue<Numeric>(iter, arguments[0], "Expected number");
+                        object = Numeric{ (Real)((lhs != 0) && (rhs != 0)) };
+                    }
+                    break;
+
+                    case Operator::Type::Or:
+                    {
+                        auto lhs = UnwrapValue<Numeric>(iter, arguments[1], "Expected number");
+                        auto rhs = UnwrapValue<Numeric>(iter, arguments[0], "Expected number");
+                        object = Numeric{ (Real)((lhs != 0) || (rhs != 0)) };
+                    }
+                    break;
 
                     case Operator::Type::Assign:
                     {
@@ -331,48 +380,27 @@ namespace Basic
 
                     };
 
-                    #undef DEFINE_CHECK_TYPES
-                    #undef CASE_COMP
-					}
+				}
 				}
 
                 solving.push_back(object);
 			}
 			break;
 
-		#define CASE_FUNC(func, signature, token, bottom, top) \
-			case Token::Type::Keyword_##token: \
-			{ \
-				if (solving.empty()) \
-                    throw Exception_Iter(iter, "Not enough arguments: "#signature" <arg>"); \
-			\
-				if (!std::holds_alternative<Numeric>(solving.back())) \
-                    throw Exception_Iter(iter, "Argument must be numeric: "#signature" <arg>"); \
-			\
-				Real value = std::get<Numeric>(solving.back()).value; \
-			\
-				if (value < bottom || value > top) \
-                    throw Exception_Iter(iter, "Argument must be within the range: [" + std::to_string(bottom) + ", " + std::to_string(top) + "]"); \
-			\
-				solving.pop_back(); \
-				solving.push_back(Numeric{ func(value) }); \
-			} \
-			break;
-			
-			CASE_FUNC(sin, SIN, Sin, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(cos, COS, Cos, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(tan, TAN, Tan, Numeric::MIN, Numeric::MAX)
+            case Token::Type::Keyword_Sin:     ApplyFunc(static_cast<Real(*)(Real)>(&sin), "SIN", Numeric::MIN, Numeric::MAX); break;
+            case Token::Type::Keyword_Cos:     ApplyFunc(static_cast<Real(*)(Real)>(&cos), "COS", Numeric::MIN, Numeric::MAX); break;
+            case Token::Type::Keyword_Tan:     ApplyFunc(static_cast<Real(*)(Real)>(&tan), "TAN", Numeric::MIN, Numeric::MAX); break;
 
-			CASE_FUNC(asin, ARCSIN, ArcSin, -1.0, 1.0)
-			CASE_FUNC(acos, ARCCOS, ArcCos, -1.0, 1.0)
-			CASE_FUNC(atan, ARCTAN, ArcTan, -3.145926535 * 0.5, 3.145926535 * 0.5)
+            case Token::Type::Keyword_ArcSin:  ApplyFunc(static_cast<Real(*)(Real)>(&asin), "ARCSIN", -1.0, 1.0); break;
+            case Token::Type::Keyword_ArcCos:  ApplyFunc(static_cast<Real(*)(Real)>(&acos), "ARCCOS", -1.0, 1.0); break;
+            case Token::Type::Keyword_ArcTan:  ApplyFunc(static_cast<Real(*)(Real)>(&atan), "ARCTAN", -3.145926535 * 0.5, 3.145926535 * 0.5); break;
 
-			CASE_FUNC(log10, LOG, Log, Numeric::EPS, Numeric::MAX)
-            CASE_FUNC(log, LN, Ln, Numeric::EPS, Numeric::MAX)
-			CASE_FUNC(exp, EXP, Exp, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(fabs, ABS, Abs, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(Real_Sign, SIGN, Sign, Numeric::MIN, Numeric::MAX)
-			CASE_FUNC(trunc, INT, Int, Numeric::MIN, Numeric::MAX)
+            case Token::Type::Keyword_Log:     ApplyFunc(static_cast<Real(*)(Real)>(&log10), "LOG", Numeric::EPS, Numeric::MAX); break;
+            case Token::Type::Keyword_Ln:      ApplyFunc(static_cast<Real(*)(Real)>(&log), "LN", Numeric::EPS, Numeric::MAX); break;
+            case Token::Type::Keyword_Exp:     ApplyFunc(static_cast<Real(*)(Real)>(&exp), "EXP", Numeric::MIN, Numeric::MAX); break;
+            case Token::Type::Keyword_Abs:     ApplyFunc(static_cast<Real(*)(Real)>(&fabs), "ABS", Numeric::MIN, Numeric::MAX); break;
+            case Token::Type::Keyword_Sign:    ApplyFunc(Real_Sign, "SIGN", Numeric::MIN, Numeric::MAX); break;
+            case Token::Type::Keyword_Int:     ApplyFunc(static_cast<Real(*)(Real)>(&trunc), "INT", Numeric::MIN, Numeric::MAX); break;
 
             case Token::Type::Keyword_Val:
             {
@@ -430,8 +458,6 @@ namespace Basic
         m_IfStack.clear();
 
         m_SkipElse = true;
-
-        //m_SubStack.clear();
     }
 
     Exception GenerateException(const std::vector<Basic::Token>& tokens, const std::string& input, const Basic::Exception_Iter& exception)
@@ -481,7 +507,11 @@ namespace Basic
 
 		bool newStmt = true;
 
-    #define NEW_STMT if (!newStmt) throw Exception_Iter(m_Cursor, "Expected : before new statement")
+        auto EnsureNewStatement = [&]()
+		{
+			if (!newStmt)
+				throw Exception_Iter(m_Cursor, "Expected : before new statement");
+		};
 
 		while (m_Cursor != tokens.end())
 		{
@@ -489,18 +519,18 @@ namespace Basic
             {
                 switch (m_Cursor->type)
                 {
-                case Token::Type::Keyword_Print: NEW_STMT; HandlePrint(); newStmt = false; break;
-                case Token::Type::Keyword_Input: NEW_STMT; HandleInput(); newStmt = false; break;
-                case Token::Type::Keyword_Cls: NEW_STMT; HandleCls(); newStmt = false; break;
-                case Token::Type::Keyword_Let: NEW_STMT; HandleLet(); newStmt = false; break;
-                case Token::Type::Keyword_Rem: NEW_STMT; m_NextLine = Result_NextLine; return programmMode;
-                case Token::Type::Keyword_Goto: NEW_STMT; HandleGoto(); return programmMode;
-                case Token::Type::Keyword_If: NEW_STMT; HandleIf(); newStmt = true; break;
+                case Token::Type::Keyword_Print: EnsureNewStatement(); HandlePrint(); newStmt = false; break;
+                case Token::Type::Keyword_Input: EnsureNewStatement(); HandleInput(); newStmt = false; break;
+                case Token::Type::Keyword_Cls: EnsureNewStatement(); HandleCls(); newStmt = false; break;
+                case Token::Type::Keyword_Let: EnsureNewStatement(); HandleLet(); newStmt = false; break;
+                case Token::Type::Keyword_Rem: EnsureNewStatement(); m_NextLine = Result_NextLine; return programmMode;
+                case Token::Type::Keyword_Goto: EnsureNewStatement(); HandleGoto(); return programmMode;
+                case Token::Type::Keyword_If: EnsureNewStatement(); HandleIf(); newStmt = true; break;
                 case Token::Type::Keyword_Else: HandleElse(); newStmt = false; break;
 
                 case Token::Type::Keyword_For:
                 {
-                    NEW_STMT;
+                    EnsureNewStatement();
                     HandleFor();
                     newStmt = false;
 
@@ -515,7 +545,7 @@ namespace Basic
 
                 case Token::Type::Keyword_Next:
                 {
-                    NEW_STMT;
+                    EnsureNewStatement();
                     HandleNext();
                     newStmt = false;
 
@@ -529,11 +559,11 @@ namespace Basic
                 }
                 break;
 
-                case Token::Type::Keyword_Sleep: NEW_STMT; HandleSleep(); newStmt = false; break;
-                case Token::Type::Keyword_End: NEW_STMT; m_NextLine = Result_Terminate; return programmMode;
+                case Token::Type::Keyword_Sleep: EnsureNewStatement(); HandleSleep(); newStmt = false; break;
+                case Token::Type::Keyword_End: EnsureNewStatement(); m_NextLine = Result_Terminate; return programmMode;
                 case Token::Type::Keyword_GoSub:
                 {
-                    NEW_STMT;
+                    EnsureNewStatement();
                     HandleGoSub();
 
                     m_SubStack.push_back(
@@ -545,14 +575,14 @@ namespace Basic
                     return programmMode;
                 }
 
-                case Token::Type::Keyword_Return: NEW_STMT; HandleReturn(); return programmMode;
-                case Token::Type::Keyword_List: NEW_STMT; HandleList(); return programmMode;
-                case Token::Type::Keyword_New: NEW_STMT; HandleNew(); return programmMode;
-                case Token::Type::Keyword_Load: NEW_STMT; HandleLoad(); return programmMode;
+                case Token::Type::Keyword_Return: EnsureNewStatement(); HandleReturn(); return programmMode;
+                case Token::Type::Keyword_List: EnsureNewStatement(); HandleList(); return programmMode;
+                case Token::Type::Keyword_New: EnsureNewStatement(); HandleNew(); return programmMode;
+                case Token::Type::Keyword_Load: EnsureNewStatement(); HandleLoad(); return programmMode;
 
                 case Token::Type::Keyword_Run:
                 {
-                    NEW_STMT;
+                    EnsureNewStatement();
                     HandleRun();
 
                     m_NextLine = Result_Terminate;
