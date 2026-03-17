@@ -7,12 +7,14 @@ namespace Basic
 {
 	namespace Guard
 	{
+        constexpr size_t SIZE = 128;
+    
 		// Uses every char from string as index and sets it to true
 		// so we can use it later to check if character corresponds to
 		// the specific group of symbols, e.g. DecDigits['.'] == true
-		static constexpr std::array<bool, 128> Create(const std::string& availableCharacters)
+		static constexpr std::array<bool, SIZE> Create(const std::string& availableCharacters)
 		{
-			std::array<bool, 128> chars{ false };
+			std::array<bool, SIZE> chars{ false };
 
 			for (auto c : availableCharacters)
 				chars[c] = true;

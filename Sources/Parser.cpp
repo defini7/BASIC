@@ -96,6 +96,9 @@ namespace Basic
 		while (currentChar != input.end())
 		{
 			// FDA - First Digit Analysis
+            
+            if (*currentChar < 0 || *currentChar >= Guard::SIZE)
+                throw Exception(input, (int)std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
 
 			if (stateNow == State::NewToken)
 			{
@@ -151,7 +154,7 @@ namespace Basic
 				{
 					// In MSX BASIC you can write any symbols in comments (i.e. after REM keyword)
 					// but because comments are handled at interpreter stage you can't do the same thing here
-                    throw Exception(input, std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
+                    throw Exception(input, (int)std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
 				}
 
 				currentChar++;
@@ -208,7 +211,7 @@ namespace Basic
 							AppendChar(State::Literal_NumericBase2);
 						}
 						else
-							throw Exception(input, std::distance(input.begin(), currentChar), "Unknown prefix for numeric literal");
+							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Unknown prefix for numeric literal");
 					}
 				}
 				break;
@@ -220,7 +223,7 @@ namespace Basic
 					else
 					{
 						if (Guard::Symbols[*currentChar])
-							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -233,7 +236,7 @@ namespace Basic
 					else
 					{
 						if (Guard::Symbols[*currentChar])
-							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -246,7 +249,7 @@ namespace Basic
 					else
 					{
 						if (Guard::Symbols[*currentChar])
-							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -259,7 +262,7 @@ namespace Basic
 					else
 					{
 						if (Guard::Symbols[*currentChar])
-							throw Exception(input, std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -315,7 +318,7 @@ namespace Basic
 						if (s_Operators.contains(token.value))
 							stateNext = State::CompleteToken;
 						else
-                            throw Exception(input, std::distance(input.begin(), currentChar), "Invalid operator was found: " + token.value);
+                            throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid operator was found: " + token.value);
 					}
 				}
 				break;
@@ -350,6 +353,8 @@ namespace Basic
 					token.value.clear();
 				}
 				break;
+                        
+                default: /* Unreachable */ break;
 
 				}
 			}
@@ -361,10 +366,10 @@ namespace Basic
 			ClassifyKeyword();
 
 		if (parenthesesBalancer != 0)
-            throw Exception(input, std::distance(input.begin(), currentChar), "Parentheses were not balanced");
+            throw Exception(input, (int)std::distance(input.begin(), currentChar), "Parentheses were not balanced");
 
 		if (quotesBalancer != 0)
-            throw Exception(input, std::distance(input.begin(), currentChar), "Quotes were not balanced");
+            throw Exception(input, (int)std::distance(input.begin(), currentChar), "Quotes were not balanced");
 
 		// Drain out the last token
 		if (!token.value.empty())

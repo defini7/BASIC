@@ -173,6 +173,8 @@ namespace Basic
                 }
 			}
 			break;
+                    
+            default: /* Unreachable */ break;
 
 			}
 
@@ -251,7 +253,8 @@ namespace Basic
 					{
 					case Operator::Type::Subtraction: object = Numeric{ -number }; break;
 					case Operator::Type::Addition:    object = Numeric{ +number }; break;
-					}
+                    default: /* Unreachable */ break;
+                    }
 				}
 				break;
 
@@ -286,7 +289,7 @@ namespace Basic
                                 return false;
                             };
 
-                            if (CheckTypes.operator()<String>("string") || CheckTypes.operator()<Numeric>("number"))
+                            if (CheckTypes.template operator()<String>("string") || CheckTypes.template operator()<Numeric>("number"))
                                 return;
 
                             throw Exception_Iter(iter, "Can't compare 2 values");
@@ -364,6 +367,7 @@ namespace Basic
                             case Operator::Type::Multiplication: object = Numeric{ lhsVal * rhsVal };     break;
                             case Operator::Type::Division:       object = Numeric{ lhsVal / rhsVal };     break;
                             case Operator::Type::Power:          object = Numeric{ pow(lhsVal, rhsVal) }; break;
+                            default: /* Unreachable */ break;
                             }
                         }
                         else if (std::holds_alternative<String>(lhs) && std::holds_alternative<String>(rhs))
@@ -417,6 +421,8 @@ namespace Basic
 			case Token::Type::Keyword_Random:
 				solving.push_back(Numeric{ (Real)rand() / (Real)RAND_MAX });
 			break;
+                    
+            default: /* Unreachable */ break;
 
 			}
 
@@ -536,7 +542,7 @@ namespace Basic
 
                     ForNode& node = m_ForStack.back();
 
-                    node.posInLine = std::distance(tokens.begin(), m_Cursor);
+                    node.posInLine = (int)std::distance(tokens.begin(), m_Cursor);
                     node.line = lineNumber;
 
                     
@@ -606,7 +612,7 @@ namespace Basic
                     if (m_Cursor == end)
                     {
                         m_NextLine = lineNumber;
-                        m_LineOffset = std::distance(tokens.begin(), m_Cursor);
+                        m_LineOffset = (int)std::distance(tokens.begin(), m_Cursor);
 
                         return programmMode;
                     }
