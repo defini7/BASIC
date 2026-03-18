@@ -156,7 +156,6 @@ namespace Basic
 		Token::Iter m_End;
 
 		std::deque<ForNode> m_ForStack;
-		std::deque<ForNode> m_IfStack;
 
         bool m_SkipElse = true;
 

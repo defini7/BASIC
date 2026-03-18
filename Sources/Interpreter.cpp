@@ -461,8 +461,6 @@ namespace Basic
         m_End = Token::Iter();
 
         m_ForStack.clear();
-        m_IfStack.clear();
-
         m_SkipElse = true;
     }
 
@@ -1130,8 +1128,6 @@ namespace Basic
         Token::Iter end = m_End;
 
         auto forStack = m_ForStack;
-        auto ifStack = m_IfStack;
-
         bool skipElse = m_SkipElse;
 
         Parser parser;
@@ -1159,7 +1155,6 @@ namespace Basic
         m_End = end;
 
         m_ForStack = forStack;
-        m_IfStack = ifStack;
 
         m_SkipElse = skipElse;
     }
