@@ -33,6 +33,7 @@ Numbers can be written in different formats:
 | `ARCTAN(x)` | Inverse tangent |
 | `SQR(x)` | Square root |
 | `LOG(x)` | Base-10 logarithm |
+| `LN(x)` | Base-e logarithm |
 | `EXP(x)` | e to the power x |
 | `ABS(x)` | Absolute value |
 | `SGN(x)` | Sign (-1, 0, or 1) |
