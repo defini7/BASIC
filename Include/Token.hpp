@@ -21,9 +21,12 @@ namespace Basic
 			Symbol,
 			Colon,
 			Semicolon,
+			Comma,
 			Operator,
 			Parenthesis_Open,
 			Parenthesis_Close,
+			Bracket_Open,
+			Bracket_Close,
 
 			Keyword_Print,
 			Keyword_Input,
@@ -61,7 +64,8 @@ namespace Basic
 			Keyword_List,
 			Keyword_Run,
             Keyword_New,
-            Keyword_Load
+            Keyword_Load,
+			Keyword_Dim
 		};
 
 		Token() = default;

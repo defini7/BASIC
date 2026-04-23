@@ -5,6 +5,7 @@
 #include <variant>
 #include <optional>
 #include <numeric>
+#include <vector>
 
 namespace Basic
 {
@@ -26,7 +27,9 @@ namespace Basic
 	struct String : Type<std::string> {};
 	struct Symbol : Type<std::string> {};
 
-	using Object = std::variant<Numeric, String, Symbol>;
+	struct Array : Type<std::vector<Numeric>> {};
+
+	using Object = std::variant<Numeric, String, Symbol, Array>;
 
 	class VarStorage
 	{
@@ -42,6 +45,5 @@ namespace Basic
 
 	private:
 		std::unordered_map<std::string, Object> m_Values;
-
 	};
 }

@@ -35,6 +35,9 @@
     <ClInclude Include="..\Include\Token.hpp" />
     <ClInclude Include="..\Include\VarStorage.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.md" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

@@ -7,8 +7,10 @@ Welcome here! This is MSX BASIC interpreter with some small changes (e.g. == ins
 2. [Numbers](#numbers)
 3. [Math Functions](#math-functions)
 4. [Commands Reference](#commands-reference)
-5. [Program Mode](#program-mode)
-6. [Contribute](#contribute)
+5. [Arrays](#arrays)
+6. [Program Mode](#program-mode)
+7. [Tips and Tricks](#tips-and-tricks)
+8. [Contribute](#contribute)
 
 ## Getting Started
 
@@ -139,6 +141,70 @@ Terminate program execution:
 IF score < 0 THEN END
 ```
 
+## Arrays
+
+### Array Declaration (DIM Statement)
+Declare arrays to store multiple values:
+```basic
+DIM array_name(size)
+DIM arr1(10), arr2(20), arr3(5)
+```
+
+- Use `DIM` keyword to declare arrays
+- Specify array name and size in parentheses
+- Multiple arrays can be declared in a single DIM statement, separated by commas
+- Array sizes must be positive integers
+- All elements are initialized to 0.0
+
+### Array Assignment and Access
+Access and modify array elements:
+```basic
+LET array(index) = value
+LET A(0) = 100
+LET B(i) = A(i) + 1
+PRINT array(index)
+```
+
+- Use parentheses `(index)` to access array elements
+- Indices are 0-based (first element is at index 0)
+- Array indices must be numeric expressions (0 to size-1)
+- Bounds checking prevents accessing invalid indices
+
+### Array Usage Tips
+1. Declare all arrays at the beginning of your program
+2. Use consistent naming: `scores(10)`, `names(50)`, etc.
+3. Remember arrays are 0-indexed
+4. Use FOR loops to efficiently process array elements
+
+### Example: Array Processing
+```basic
+10 DIM values(10)
+20 FOR i = 0 TO 9
+30   LET values(i) = i * 10
+40 NEXT
+50 FOR i = 0 TO 9
+60   PRINT values(i)
+70 NEXT
+```
+
+### Example: Statistics
+```basic
+10 DIM scores(5)
+20 LET scores(0) = 85
+30 LET scores(1) = 92
+40 LET scores(2) = 78
+50 LET scores(3) = 95
+60 LET scores(4) = 88
+70 LET sum = 0
+80 FOR i = 0 TO 4
+90   LET sum = sum + scores(i)
+100 NEXT
+110 LET average = sum / 5
+120 PRINT "Sum: "; sum
+130 PRINT "Average: "; average
+140 END
+```
+
 ## Program Mode
 
 ### Line Numbers
@@ -186,6 +252,12 @@ full = "Hello" + " " + "World"
 3. **Comparison operators**: `==`, `<>` (not equal), `<`, `>`, `<=`, `>=`
 
 4. **Variable names** can be longer than a single letter!
+
+5. **Logical operators**: `AND`, `OR` for combining conditions:
+```basic
+IF x > 0 AND x < 10 THEN PRINT "Between 0 and 10"
+IF a == 1 OR b == 1 THEN PRINT "At least one is 1"
+```
 
 ## Contribute
 

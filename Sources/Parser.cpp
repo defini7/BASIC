@@ -66,6 +66,7 @@ namespace Basic
 				{"RUN", Token::Type::Keyword_Run},
 				{"NEW", Token::Type::Keyword_New},
 				{"LOAD", Token::Type::Keyword_Load},
+				{"DIM", Token::Type::Keyword_Dim},
 				{"AND", Token::Type::Operator},
 				{"OR", Token::Type::Operator}
 			};
@@ -144,11 +145,20 @@ namespace Basic
 					parenthesesBalancer--;
 				}
 
+				else if (*currentChar == '[')
+					StartToken(Token::Type::Bracket_Open);
+
+				else if (*currentChar == ']')
+					StartToken(Token::Type::Bracket_Close);
+
 				else if (*currentChar == ':')
 					StartToken(Token::Type::Colon);
 				
 				else if (*currentChar == ';')
 					StartToken(Token::Type::Semicolon);
+
+				else if (*currentChar == ',')
+					StartToken(Token::Type::Comma);
 
 				else
 				{

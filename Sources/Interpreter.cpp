@@ -40,11 +40,41 @@ namespace Basic
 			case Token::Type::Literal_NumericBase16:
 			case Token::Type::Literal_NumericBase2:
 			case Token::Type::Literal_String:
-			case Token::Type::Symbol:
-				output.push_back(*token);
-				break;
+                holding.push_back(*token);
+                break;
 
-			// If we reach one of the keywords then just stop parsing
+            case Token::Type::Symbol:
+            {
+                std::string name = token->value;
+
+                auto next = std::next(token);
+
+                // Check if it's an array access
+                if (next != m_End && next->type == Token::Type::Parenthesis_Open)
+                {
+                    Token::Iter it = next;
+
+                    int index = ParseArrayIndex(it);
+
+                    const auto value = m_Variables.Get(name);
+
+                    if (!value || !std::holds_alternative<Array>(value.value().get()))
+                        throw Exception_Iter(iter, "Variable is not an array");
+
+                    Array& arr = std::get<Array>(value.value().get());
+
+                    if (index < 0 || index >= (int)arr.value.size())
+                        throw Exception_Iter(iter, "Array index out of bounds");
+
+                    solving.push_back(Object(arr.value[index]));
+
+                    token = it - 1;
+                }
+                else
+                    solving.push_back(Object(Symbol{ name }));
+            }
+			break;
+
 			case Token::Type::Keyword_Print:
 			case Token::Type::Keyword_Input:
 			case Token::Type::Keyword_Cls:
@@ -65,8 +95,11 @@ namespace Basic
             case Token::Type::Keyword_Run:
             case Token::Type::Keyword_New:
             case Token::Type::Keyword_Load:
-			case Token::Type::Semicolon:
-			case Token::Type::Colon:
+		    case Token::Type::Keyword_Dim:
+		    case Token::Type::Semicolon:
+		    case Token::Type::Colon:
+		    case Token::Type::Comma:
+            case Token::Type::Bracket_Close:
 				stop = true;
 				break;
 
@@ -150,31 +183,57 @@ namespace Basic
 
 			case Token::Type::Parenthesis_Open:
 				holding.push_back(*token);
-			break;
+				break;
 
 			case Token::Type::Parenthesis_Close:
 			{
-				// Drain the holding stack out until an open parenthesis
-				while (holding.back().type != Token::Type::Parenthesis_Open)
+				// Check if there's a matching open paren in the holding stack
+				bool hasMatchingOpenParen = false;
+
+				for (auto it = holding.rbegin(); it != holding.rend(); ++it)
 				{
-					output.push_back(holding.back());
-					holding.pop_back();
+					if (it->type == Token::Type::Parenthesis_Open)
+					{
+						hasMatchingOpenParen = true;
+						break;
+					}
 				}
 
-				// And remove the parenthesis by itself
-				holding.pop_back();
+				if (!hasMatchingOpenParen)
+				{
+					// No matching open paren, this closing paren is for array indexing
+					stop = true;
+				}
+				else
+				{
+					// Drain the holding stack out until an open parenthesis
+					while (!holding.empty() && holding.back().type != Token::Type::Parenthesis_Open)
+					{
+						output.push_back(holding.back());
+						holding.pop_back();
+					}
 
-                // If the token before the open parenthesis was a function
-                // then add it to the output now
-                if (!holding.empty() && holding.back().IsFunction())
-                {
-                    output.push_back(holding.back());
-                    holding.pop_back();
-                }
+					// And remove the parenthesis by itself
+					if (!holding.empty())
+					{
+						holding.pop_back();
+
+						// If the token before the open parenthesis was a function
+						// then add it to the output now
+						if (!holding.empty() && holding.back().IsFunction())
+						{
+							output.push_back(holding.back());
+							holding.pop_back();
+						}
+					}
+				}
 			}
 			break;
-                    
-            default: /* Unreachable */ break;
+
+			// Bracket_Open and Bracket_Close are NOT handled here!
+			// They are handled by HandleDim, HandleLet, etc.
+
+			default: /* Unreachable */ break;
 
 			}
 
@@ -236,7 +295,7 @@ namespace Basic
 
 				for (auto& arg : arguments)
 				{
-					arg = solving.back();
+				    arg = solving.back();
 					solving.pop_back();
 				}
 
@@ -527,6 +586,7 @@ namespace Basic
                 case Token::Type::Keyword_Input: EnsureNewStatement(); HandleInput(); newStmt = false; break;
                 case Token::Type::Keyword_Cls: EnsureNewStatement(); HandleCls(); newStmt = false; break;
                 case Token::Type::Keyword_Let: EnsureNewStatement(); HandleLet(); newStmt = false; break;
+                case Token::Type::Keyword_Dim: EnsureNewStatement(); HandleDim(); newStmt = false; break;
                 case Token::Type::Keyword_Rem: EnsureNewStatement(); m_NextLine = Result_NextLine; return programmMode;
                 case Token::Type::Keyword_Goto: EnsureNewStatement(); HandleGoto(); return programmMode;
                 case Token::Type::Keyword_If: EnsureNewStatement(); HandleIf(); newStmt = true; break;
@@ -542,8 +602,6 @@ namespace Basic
 
                     node.posInLine = (int)std::distance(tokens.begin(), m_Cursor);
                     node.line = lineNumber;
-
-                    
                 }
                 break;
 
@@ -597,7 +655,48 @@ namespace Basic
 
                 default:
                 {
-                    if (m_Cursor->type == Token::Type::Colon)
+                    const auto next = std::next(m_Cursor);
+
+                    if (m_Cursor->type == Token::Type::Symbol && next != tokens.end() && next->type == Token::Type::Parenthesis_Open)
+                    {
+                        std::string name = m_Cursor->value;
+                        ++m_Cursor;
+
+                        int index = ParseArrayIndex(m_Cursor);
+
+                        if (m_Cursor->type != Token::Type::Operator || m_Cursor->value != "=")
+                            throw Exception_Iter(m_Cursor, "Expected = after array index");
+
+                        try
+                        {
+                            auto [res, end] = ParseExpression(m_Cursor + 1);
+                            auto value = m_Variables.Get(name);
+
+                            if (!value || !std::holds_alternative<Array>(value.value().get()))
+                                throw Exception_Iter(m_Cursor, "Variable is not an array");
+
+                            Array& arr = std::get<Array>(value.value().get());
+
+                            if (index < 0 || index >= (int)arr.value.size())
+                                throw Exception_Iter(m_Cursor, "Array index out of bounds");
+
+                            if (!std::holds_alternative<Numeric>(res))
+                                throw Exception_Iter(m_Cursor, "Can only assign numeric values to array elements");
+
+                            arr.value[index] = std::get<Numeric>(res);
+
+                            if (m_Cursor == end)
+                                ++m_Cursor;
+                            else
+                                m_Cursor = end;
+
+                        }
+                        catch (const Exception_Iter& e)
+                        {
+                            throw e;
+                        }
+                    }
+                    else if (m_Cursor->type == Token::Type::Colon)
                     {
                         newStmt = true;
                         ++m_Cursor;
@@ -617,7 +716,6 @@ namespace Basic
                     else
                         m_Cursor = end;
                 }
-
                 }
             }
             catch (const Exception_Iter& e)
@@ -644,9 +742,17 @@ namespace Basic
 
                 if (m_Cursor != end)
                 {
-                    std::visit([](const auto& obj)
+                    std::visit(
+                        std::overloaded
                         {
-                            std::cout << obj.value;
+                            [&](const Array& arr)
+                            {
+                                throw Exception_Iter(m_Cursor, "Can't print array");
+                            },
+                            [](const auto& obj)
+                            {
+                                std::cout << obj.value;
+                            },
                         }, res);
 
                     m_Cursor = end;
@@ -730,8 +836,7 @@ namespace Basic
 		std::string name = m_Cursor->value;
 		++m_Cursor;
 
-		// =
-		if (m_Cursor->type != Token::Type::Operator)
+        if (m_Cursor->type != Token::Type::Operator)
             throw Exception_Iter(m_Cursor, "Expected =");
 
         try
@@ -748,290 +853,80 @@ namespace Basic
         }
 	}
 
-	// GOTO <line>
-	void Interpreter::HandleGoto()
+	int Interpreter::ParseArrayIndex(Token::Iter& iter)
 	{
-		// GOTO
-		++m_Cursor;
+		if (iter->type != Token::Type::Parenthesis_Open)
+			throw Exception_Iter(iter, "Expected (");
 
-        try
-        {
-            // <line>
-            auto [res, end] = ParseExpression(m_Cursor);
-
-            if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(std::prev(end), "Expected line number to be numeric");
-
-            m_NextLine = (int)std::get<Numeric>(res).value;
-            m_Cursor = end;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-        }
-	}
-
-	// IF <expr> THEN <stmt> ELSE <stmt>
-	void Interpreter::HandleIf()
-	{
-		// IF
-		++m_Cursor;
-
-        try
-        {
-            // <expr>
-            auto [res, iter] = ParseExpression(m_Cursor);
-
-            if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(std::prev(iter), "Expected expression result to be numeric");
-
-            // THEN
-            if (iter->type != Token::Type::Keyword_Then)
-                throw Exception_Iter(iter, "Expected THEN");
-
-            ++iter;
-
-            // if <expr>=0 then move to else block if it exists
-            if (std::get<Numeric>(res).value == 0.0)
-            {
-                int elseBalancer = 0;
-
-                // We need to find ELSE block and execute it
-                m_SkipElse = false;
-
-                // Searching for the corresponding ELSE block
-                while (iter != m_End)
-                {
-                    if (iter->type == Token::Type::Keyword_If)
-                        ++elseBalancer;
-
-                    if (iter->type == Token::Type::Keyword_Else)
-                    {
-                        if (elseBalancer == 0)
-                        {
-                            // Found corresponding ELSE block so just stop here
-                            m_Cursor = iter + 1;
-                            return;
-                        }
-
-                        --elseBalancer;
-                    }
-
-                    ++iter;
-                }
-
-                // No ELSE block
-            }
-            else // <expr> != 0
-                m_SkipElse = true;
-
-            m_Cursor = iter;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-        }
-	}
-
-	void Interpreter::HandleElse()
-	{
-		if (m_SkipElse)
-		{
-			// We need to skip the corresponding ELSE block so just move to the end of the line
-			m_Cursor = m_End;
-		}
-		else
-		{
-			m_SkipElse = true;
-
-			// ELSE
-			++m_Cursor;
-		}
-	}
-
-	// FOR <var>=<expr> TO <expr> ? STEP <expr>
-	void Interpreter::HandleFor()
-	{
-		ForNode node;
-		Object res;
-
-		// FOR
-		++m_Cursor;
-
-		// <var>
-		if (m_Cursor->type != Token::Type::Symbol)
-            throw Exception_Iter(m_Cursor, "Expected variable name");
-
-		node.varName = m_Cursor->value;
-		++m_Cursor;
-
-		// =
-		if (m_Cursor->type != Token::Type::Operator)
-            throw Exception_Iter(m_Cursor, "Expected =");
-
-		++m_Cursor;
+		++iter;
 
 		try
 		{
-            // <expr>
-			std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
+			auto [res, end] = ParseExpression(iter);
 
 			if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(m_Cursor, "Expected <expr> result to be numeric");
+				throw Exception_Iter(iter, "Array index must be numeric");
 
-			node.startValue = std::get<Numeric>(res).value;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-        }
+			int index = (int)std::get<Numeric>(res).value;
 
-		// TO
-		if (m_Cursor->type != Token::Type::Keyword_To)
-            throw Exception_Iter(m_Cursor, "Expected TO after <expr>");
+			if (end == m_End || end->type != Token::Type::Parenthesis_Close)
+				throw Exception_Iter(end, "Expected )");
 
+			++end;
+			iter = end;
+
+			return index;
+		}
+		catch (const Exception_Iter& e)
+		{
+			throw e;
+		}
+	}
+
+	// DIM <name>(<size>) [, <name>(<size>) , ...]
+	void Interpreter::HandleDim()
+	{
+		// DIM
 		++m_Cursor;
 
-		try
+		while (true)
 		{
-            // <expr>
-			std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
+			// <name>
+			if (m_Cursor->type != Token::Type::Symbol)
+				throw Exception_Iter(m_Cursor, "Expected array name");
 
-			if (!std::holds_alternative<Numeric>(res))
-                throw Exception_Iter(m_Cursor, "Expected <expr> result to be numeric");
-
-			node.endValue = std::get<Numeric>(res).value;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-		}
-
-		// STEP
-		if (m_Cursor != m_End && m_Cursor->type == Token::Type::Keyword_Step)
-		{
+			std::string arrayName = m_Cursor->value;
 			++m_Cursor;
 
-			// <expr>
+			// (<size>)
+			if (m_Cursor->type != Token::Type::Parenthesis_Open)
+				throw Exception_Iter(m_Cursor, "Expected ( after array name");
+
 			try
 			{
-				std::tie(res, m_Cursor) = ParseExpression(m_Cursor);
+				int size = ParseArrayIndex(m_Cursor);
 
-				if (!std::holds_alternative<Numeric>(res))
-                    throw std::runtime_error("Expected <expr> result to be numeric");
+				if (size <= 0)
+					throw Exception_Iter(m_Cursor, "Array size must be positive");
 
-				node.step = std::get<Numeric>(res).value;
-            }
-            catch (const Exception_Iter& e)
-            {
-                throw e;
-            }
+                Array arr{ std::vector<Numeric>(size, Numeric{ 0.0 }) };
+				m_Variables.Set(arrayName, arr);
+			}
+			catch (const Exception_Iter& e)
+			{
+				throw e;
+			}
+
+			// Check for comma to continue or end
+			if (!IsEnd() && m_Cursor->type == Token::Type::Comma)
+			{
+				++m_Cursor;
+				continue;
+			}
+			else
+				break;
 		}
-        else
-        {
-            // Default value if no STEP
-			node.step = 1.0;
-        }
-
-		m_Variables.Set(node.varName, Numeric{ node.startValue });
-		m_ForStack.push_back(node);
 	}
-
-    // NEXT <var>
-	void Interpreter::HandleNext()
-	{        
-		if (m_ForStack.empty())
-            throw Exception_Iter(m_Cursor, "NEXT without FOR");
-
-        // NEXT
-        ++m_Cursor;
-
-        // <var>
-        if (m_Cursor != m_End && m_Cursor->type == Token::Type::Symbol)
-        {
-            // While FOR on top of stack doesn't have variable with specified name
-            while (m_ForStack.back().varName != m_Cursor->value)
-            {
-                m_ForStack.pop_back();
-
-                if (m_ForStack.empty())
-                    throw Exception_Iter(m_Cursor, "Can't find FOR loop with specified var name");
-            }
-
-            ++m_Cursor;
-        }
-
-        ForNode& node = m_ForStack.back();
-
-		node.startValue += node.step;
-		m_Variables.Set(node.varName, Numeric{ node.startValue });
-
-		if ((node.startValue - node.endValue) * Real_Sign(node.step) <= Real(0))
-			m_NextLine = node.line;
-        else
-            m_ForStack.pop_back();
-	}
-
-	// SLEEP <arg>
-	void Interpreter::HandleSleep()
-	{
-		// SLEEP
-		++m_Cursor;
-
-        try
-        {
-            // <expr>
-            auto [res, end] = ParseExpression(m_Cursor);
-
-            if (std::holds_alternative<Numeric>(res))
-            {
-                int millis = std::get<Numeric>(res).value;
-
-                if (millis < 0)
-                    throw Exception_Iter(end, "Can't SLEEP < 0 milliseconds");
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(millis));
-            }
-            else
-            {
-                throw Exception_Iter(end, "Expected milliseconds to be numeric");
-            }
-
-            m_Cursor = end;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-        }
-	}
-
-    // GOSUB <line>
-    void Interpreter::HandleGoSub()
-    {
-        // GOSUB
-        ++m_Cursor;
-
-        try
-        {
-            // <line>
-            auto [res, end] = ParseExpression(m_Cursor);
-
-            if (!std::holds_alternative<Numeric>(res))
-                throw std::runtime_error("Provide a line number");
-
-            int line = std::get<Numeric>(res).value;
-
-            if (line < 0)
-                throw std::runtime_error("Provide a line number > 0");
-
-            m_Cursor = end;
-            m_NextLine = line;
-        }
-        catch (const Exception_Iter& e)
-        {
-            throw e;
-        }
-    }
 
     // RETURN
     void Interpreter::HandleReturn()
@@ -1158,4 +1053,297 @@ namespace Basic
 
         m_SkipElse = skipElse;
     }
+
+	// GOTO <line>
+	void Interpreter::HandleGoto()
+	{
+		// GOTO
+		++m_Cursor;
+
+        try
+        {
+            // <line>
+            auto [res, end] = ParseExpression(m_Cursor);
+
+            if (!std::holds_alternative<Numeric>(res))
+            {
+                if (end != m_End && end != m_Cursor)
+                    throw Exception_Iter(std::prev(end), "Expected line number to be numeric");
+                else
+                    throw Exception_Iter(m_Cursor, "Expected line number to be numeric");
+            }
+
+            m_NextLine = (int)std::get<Numeric>(res).value;
+            m_Cursor = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
+	}
+
+	// IF <expr> THEN <stmt> ELSE <stmt>
+	void Interpreter::HandleIf()
+	{
+		// IF
+		++m_Cursor;
+
+        try
+        {
+            // <expr>
+            auto [res, iter] = ParseExpression(m_Cursor);
+
+            if (!std::holds_alternative<Numeric>(res))
+            {
+                if (iter != m_End && iter != m_Cursor)
+                    throw Exception_Iter(std::prev(iter), "Expected expression result to be numeric");
+                else
+                    throw Exception_Iter(m_Cursor, "Expected expression result to be numeric");
+            }
+
+            // THEN
+            if (iter->type != Token::Type::Keyword_Then)
+                throw Exception_Iter(iter, "Expected THEN");
+
+            ++iter;
+
+            // if <expr>=0 then move to else block if it exists
+            if (std::get<Numeric>(res).value == 0.0)
+            {
+                int elseBalancer = 0;
+
+                // We need to find ELSE block and execute it
+                m_SkipElse = false;
+
+                // Searching for the corresponding ELSE block
+                while (iter != m_End)
+                {
+                    if (iter->type == Token::Type::Keyword_If)
+                        ++elseBalancer;
+
+                    if (iter->type == Token::Type::Keyword_Else)
+                    {
+                        if (elseBalancer == 0)
+                        {
+                            // Found corresponding ELSE block so just stop here
+                            m_Cursor = iter + 1;
+                            return;
+                        }
+
+                        --elseBalancer;
+                    }
+
+                    ++iter;
+                }
+
+                // No ELSE block
+            }
+            else // <expr> != 0
+                m_SkipElse = true;
+
+            m_Cursor = iter;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
+	}
+
+	void Interpreter::HandleElse()
+	{
+		if (m_SkipElse)
+		{
+			// We need to skip the corresponding ELSE block so just move to the end of the line
+			m_Cursor = m_End;
+		}
+		else
+		{
+			m_SkipElse = true;
+
+			// ELSE
+			++m_Cursor;
+		}
+	}
+
+	// FOR <var> = <expr> TO <expr> [ STEP <expr> ]
+	void Interpreter::HandleFor()
+	{
+		// FOR
+		++m_Cursor;
+
+		// <var>
+		if (m_Cursor->type != Token::Type::Symbol)
+            throw Exception_Iter(m_Cursor, "Expected variable name");
+
+		std::string varName = m_Cursor->value;
+		++m_Cursor;
+
+		// =
+		if (m_Cursor->type != Token::Type::Operator || m_Cursor->value != "=")
+            throw Exception_Iter(m_Cursor, "Expected =");
+
+		++m_Cursor;
+
+		try
+		{
+			// <start expr>
+			auto [startRes, startEnd] = ParseExpression(m_Cursor);
+
+			if (!std::holds_alternative<Numeric>(startRes))
+                throw Exception_Iter(m_Cursor, "Start value must be numeric");
+
+			// TO
+			if (startEnd->type != Token::Type::Keyword_To)
+                throw Exception_Iter(startEnd, "Expected TO");
+
+			auto iter = startEnd + 1;
+
+			// <end expr>
+			auto [endRes, endEnd] = ParseExpression(iter);
+
+			if (!std::holds_alternative<Numeric>(endRes))
+                throw Exception_Iter(iter, "End value must be numeric");
+
+			Real step = 1.0;
+
+			// STEP ?
+			if (endEnd->type == Token::Type::Keyword_Step)
+			{
+				iter = endEnd + 1;
+
+				auto [stepRes, stepEnd] = ParseExpression(iter);
+
+				if (!std::holds_alternative<Numeric>(stepRes))
+                    throw Exception_Iter(iter, "Step value must be numeric");
+
+				step = std::get<Numeric>(stepRes).value;
+
+				m_Cursor = stepEnd;
+			}
+			else
+				m_Cursor = endEnd;
+
+			// Create and push a new for node
+			m_ForStack.push_back(ForNode {
+				.varName = varName,
+				.line = -1,
+				.posInLine = -1,
+				.startValue = std::get<Numeric>(startRes).value,
+				.endValue = std::get<Numeric>(endRes).value,
+				.step = step
+			});
+
+			// Set the variable to start value
+			m_Variables.Set(varName, startRes);
+		}
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
+	}
+
+	// NEXT [ <var> ]
+	void Interpreter::HandleNext()
+	{
+		// NEXT
+		++m_Cursor;
+
+		if (m_ForStack.empty())
+            throw Exception_Iter(std::prev(m_Cursor), "NEXT without FOR");
+
+		ForNode& node = m_ForStack.back();
+
+		// <?var>
+		if (m_Cursor != m_End && m_Cursor->type == Token::Type::Symbol)
+		{
+			if (m_Cursor->value != node.varName)
+                throw Exception_Iter(m_Cursor, "Variable name mismatch");
+
+			++m_Cursor;
+		}
+
+		// Increment the variable
+		auto value = m_Variables.Get(node.varName);
+
+		if (value)
+		{
+			Object& obj = value.value().get();
+			if (std::holds_alternative<Numeric>(obj))
+			{
+				Real curValue = std::get<Numeric>(obj).value;
+				curValue += node.step;
+
+				m_Variables.Set(node.varName, Numeric{ curValue });
+
+				if ((node.step > 0 && curValue > node.endValue) ||
+				    (node.step < 0 && curValue < node.endValue))
+				{
+					// Loop is finished
+					m_ForStack.pop_back();
+                    m_NextLine = -1;
+				}
+				else
+				{
+					// Continue loop
+					m_NextLine = node.line;
+				}
+			}
+			else
+                throw Exception_Iter(std::prev(m_Cursor), "For loop variable is not numeric");
+		}
+		else
+            throw Exception_Iter(std::prev(m_Cursor), "For loop variable is not numeric");
+	}
+
+	// SLEEP <milliseconds>
+	void Interpreter::HandleSleep()
+	{
+		// SLEEP
+		++m_Cursor;
+
+        try
+        {
+            // <milliseconds>
+            auto [res, end] = ParseExpression(m_Cursor);
+
+            if (!std::holds_alternative<Numeric>(res))
+                throw Exception_Iter(m_Cursor, "Sleep time must be numeric");
+
+            std::this_thread::sleep_for(std::chrono::milliseconds((long long)std::get<Numeric>(res).value));
+
+            m_Cursor = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
+	}
+
+	// GOSUB <line>
+	void Interpreter::HandleGoSub()
+	{
+		// GOSUB
+		++m_Cursor;
+
+        try
+        {
+            // <line>
+            auto [res, end] = ParseExpression(m_Cursor);
+
+            if (!std::holds_alternative<Numeric>(res))
+            {
+                if (end != m_End && end != m_Cursor)
+                    throw Exception_Iter(std::prev(end), "Expected line number to be numeric");
+                else
+                    throw Exception_Iter(m_Cursor, "Expected line number to be numeric");
+            }
+
+            m_NextLine = (int)std::get<Numeric>(res).value;
+            m_Cursor = end;
+        }
+        catch (const Exception_Iter& e)
+        {
+            throw e;
+        }
+	}
 }

@@ -9,10 +9,10 @@ namespace Basic
 
 	std::optional<std::reference_wrapper<Object>> VarStorage::Get(const std::string& name)
 	{
-		if (!m_Values.contains(name))
+		auto it = m_Values.find(name);
+		if (it == m_Values.end())
 			return std::nullopt;
-
-		return m_Values[name];
+		return it->second;
 	}
 
 	void VarStorage::Clear()

@@ -9,6 +9,12 @@
 #include "Token.hpp"
 #include "VarStorage.hpp"
 
+namespace std
+{
+	template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+	template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+}
+
 namespace Basic
 {
 	inline Real Real_Sign(Real v)
@@ -68,6 +74,9 @@ namespace Basic
 		// Parses expression using tokens starting from iter and
 		// returns last object and iterator to token after last-parsed one
         std::pair<Object, Token::Iter> ParseExpression(Token::Iter iter);
+
+		// Parses array index and returns the index value
+		int ParseArrayIndex(Token::Iter& iter);
 
 	private:
 		template <class T>
@@ -144,6 +153,7 @@ namespace Basic
         void HandleNew();
         void HandleRun();
         void HandleLoad();
+		void HandleDim();
 
 	private:
         std::map<int, std::vector<Basic::Token>> m_Programm;
