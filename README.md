@@ -159,9 +159,9 @@ DIM arr1(10), arr2(20), arr3(5)
 ### Array Assignment and Access
 Access and modify array elements:
 ```basic
-LET array(index) = value
-LET A(0) = 100
-LET B(i) = A(i) + 1
+array(index) = value
+A(0) = 100
+B(i) = A(i) + 1
 PRINT array(index)
 ```
 
@@ -180,7 +180,7 @@ PRINT array(index)
 ```basic
 10 DIM values(10)
 20 FOR i = 0 TO 9
-30   LET values(i) = i * 10
+30   values(i) = i * 10
 40 NEXT
 50 FOR i = 0 TO 9
 60   PRINT values(i)
@@ -190,14 +190,14 @@ PRINT array(index)
 ### Example: Statistics
 ```basic
 10 DIM scores(5)
-20 LET scores(0) = 85
-30 LET scores(1) = 92
-40 LET scores(2) = 78
-50 LET scores(3) = 95
-60 LET scores(4) = 88
+20 scores(0) = 85
+30 scores(1) = 92
+40 scores(2) = 78
+50 scores(3) = 95
+60 scores(4) = 88
 70 LET sum = 0
 80 FOR i = 0 TO 4
-90   LET sum = sum + scores(i)
+90   sum = sum + scores(i)
 100 NEXT
 110 LET average = sum / 5
 120 PRINT "Sum: "; sum

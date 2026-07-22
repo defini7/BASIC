@@ -4,7 +4,7 @@
 
 int main()
 {
-    std::cout << "MSX-like BASIC version 0.1\n";
+    std::cout << "MSX-like BASIC\n";
     std::cout << "Repository: github.com/defini7/BASIC\n" << std::endl;
 
 	Basic::Parser parser;

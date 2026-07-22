@@ -763,7 +763,7 @@ namespace Basic
                 throw e;
             }
 		}
-		while (m_Cursor != m_End && m_Cursor->type == Token::Type::Semicolon);
+		while (!IsEnd() && m_Cursor->type == Token::Type::Semicolon);
 
         if (std::prev(m_Cursor)->type != Token::Type::Semicolon)
             std::cout << std::endl;
@@ -785,7 +785,7 @@ namespace Basic
                 // <question>
                 ++m_Cursor;
 
-                if (m_Cursor == m_End || m_Cursor->type != Token::Type::Semicolon)
+                if (IsEnd() || m_Cursor->type != Token::Type::Semicolon)
                     throw Exception_Iter(m_Cursor, "Expected ;");
 
                 // ;
@@ -830,13 +830,13 @@ namespace Basic
 		++m_Cursor;
 
 		// <name>
-		if (m_Cursor->type != Token::Type::Symbol)
+		if (IsEnd() || m_Cursor->type != Token::Type::Symbol)
             throw Exception_Iter(m_Cursor, "Expected variable name");
 
 		std::string name = m_Cursor->value;
 		++m_Cursor;
 
-        if (m_Cursor->type != Token::Type::Operator)
+        if (IsEnd() || m_Cursor->type != Token::Type::Operator)
             throw Exception_Iter(m_Cursor, "Expected =");
 
         try
@@ -892,14 +892,14 @@ namespace Basic
 		while (true)
 		{
 			// <name>
-			if (m_Cursor->type != Token::Type::Symbol)
+			if (IsEnd() || m_Cursor->type != Token::Type::Symbol)
 				throw Exception_Iter(m_Cursor, "Expected array name");
 
 			std::string arrayName = m_Cursor->value;
 			++m_Cursor;
 
 			// (<size>)
-			if (m_Cursor->type != Token::Type::Parenthesis_Open)
+			if (IsEnd() || m_Cursor->type != Token::Type::Parenthesis_Open)
 				throw Exception_Iter(m_Cursor, "Expected ( after array name");
 
 			try
@@ -918,13 +918,10 @@ namespace Basic
 			}
 
 			// Check for comma to continue or end
-			if (!IsEnd() && m_Cursor->type == Token::Type::Comma)
-			{
-				++m_Cursor;
-				continue;
-			}
-			else
-				break;
+            if (IsEnd() || m_Cursor->type != Token::Type::Comma)
+                break;
+			
+            ++m_Cursor;
 		}
 	}
 
@@ -1004,7 +1001,7 @@ namespace Basic
         ++m_Cursor;
 
         // <path>
-        if (m_Cursor->type != Token::Type::Literal_String)
+        if (IsEnd() || m_Cursor->type != Token::Type::Literal_String)
             throw Exception_Iter(m_Cursor, "Expected file path");
 
         std::ifstream ifs(m_Cursor->value);
@@ -1065,10 +1062,10 @@ namespace Basic
             // <line>
             auto [res, end] = ParseExpression(m_Cursor);
 
-            if (!std::holds_alternative<Numeric>(res))
+            if (IsEnd() || !std::holds_alternative<Numeric>(res))
             {
                 if (end != m_End && end != m_Cursor)
-                    throw Exception_Iter(std::prev(end), "Expected line number to be numeric");
+                    throw Exception_Iter(std::prev(end), "Expected line number");
                 else
                     throw Exception_Iter(m_Cursor, "Expected line number to be numeric");
             }
@@ -1093,16 +1090,16 @@ namespace Basic
             // <expr>
             auto [res, iter] = ParseExpression(m_Cursor);
 
-            if (!std::holds_alternative<Numeric>(res))
+            if (IsEnd() || !std::holds_alternative<Numeric>(res))
             {
                 if (iter != m_End && iter != m_Cursor)
-                    throw Exception_Iter(std::prev(iter), "Expected expression result to be numeric");
+                    throw Exception_Iter(std::prev(iter), "Expected expression");
                 else
                     throw Exception_Iter(m_Cursor, "Expected expression result to be numeric");
             }
 
             // THEN
-            if (iter->type != Token::Type::Keyword_Then)
+            if (iter == m_End || iter->type != Token::Type::Keyword_Then)
                 throw Exception_Iter(iter, "Expected THEN");
 
             ++iter;
@@ -1172,17 +1169,20 @@ namespace Basic
 		++m_Cursor;
 
 		// <var>
-		if (m_Cursor->type != Token::Type::Symbol)
+		if (IsEnd() || m_Cursor->type != Token::Type::Symbol)
             throw Exception_Iter(m_Cursor, "Expected variable name");
 
 		std::string varName = m_Cursor->value;
 		++m_Cursor;
 
 		// =
-		if (m_Cursor->type != Token::Type::Operator || m_Cursor->value != "=")
+		if (IsEnd() || m_Cursor->type != Token::Type::Operator || m_Cursor->value != "=")
             throw Exception_Iter(m_Cursor, "Expected =");
 
 		++m_Cursor;
+
+        if (IsEnd())
+            throw Exception_Iter(m_Cursor, "Expected start value");
 
 		try
 		{
@@ -1193,10 +1193,13 @@ namespace Basic
                 throw Exception_Iter(m_Cursor, "Start value must be numeric");
 
 			// TO
-			if (startEnd->type != Token::Type::Keyword_To)
+			if (IsEnd() || startEnd == m_End || startEnd->type != Token::Type::Keyword_To)
                 throw Exception_Iter(startEnd, "Expected TO");
 
 			auto iter = startEnd + 1;
+
+            if (iter == m_End)
+                throw Exception_Iter(iter, "Expected end value");
 
 			// <end expr>
 			auto [endRes, endEnd] = ParseExpression(iter);
@@ -1207,13 +1210,13 @@ namespace Basic
 			Real step = 1.0;
 
 			// STEP ?
-			if (endEnd->type == Token::Type::Keyword_Step)
+			if (endEnd != m_End && endEnd->type == Token::Type::Keyword_Step)
 			{
 				iter = endEnd + 1;
 
 				auto [stepRes, stepEnd] = ParseExpression(iter);
 
-				if (!std::holds_alternative<Numeric>(stepRes))
+				if (!IsEnd() || !std::holds_alternative<Numeric>(stepRes))
                     throw Exception_Iter(iter, "Step value must be numeric");
 
 				step = std::get<Numeric>(stepRes).value;
@@ -1224,7 +1227,8 @@ namespace Basic
 				m_Cursor = endEnd;
 
 			// Create and push a new for node
-			m_ForStack.push_back(ForNode {
+			m_ForStack.push_back(ForNode
+            {
 				.varName = varName,
 				.line = -1,
 				.posInLine = -1,
@@ -1268,6 +1272,7 @@ namespace Basic
 		if (value)
 		{
 			Object& obj = value.value().get();
+            
 			if (std::holds_alternative<Numeric>(obj))
 			{
 				Real curValue = std::get<Numeric>(obj).value;

@@ -164,6 +164,9 @@ namespace Basic
 				{
 					// In MSX BASIC you can write any symbols in comments (i.e. after REM keyword)
 					// but because comments are handled at interpreter stage you can't do the same thing here
+
+					// TODO: Fix it
+
                     throw Exception(input, (int)std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
 				}
 
