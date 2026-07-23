@@ -527,6 +527,8 @@ namespace Basic
     {
         int pos = 0;
 
+        // TODO: take into account that tokens may be not separated by space, e.g. INPUT A;
+
         for (auto it = tokens.begin(); it != exception.iterator; ++it)
             pos += it->value.length() + 1;
 
@@ -778,7 +780,7 @@ namespace Basic
         try
         {
             // <question>
-            if (m_Cursor != m_End && m_Cursor->type == Token::Type::Literal_String)
+            if (!IsEnd() && m_Cursor->type == Token::Type::Literal_String)
             {
                 std::cout << m_Cursor->value;
 
@@ -792,7 +794,7 @@ namespace Basic
                 ++m_Cursor;
             }
 
-            if (m_Cursor != m_End && m_Cursor->type == Token::Type::Symbol)
+            if (!IsEnd() && m_Cursor->type == Token::Type::Symbol)
             {
                 std::string line;
                 std::getline(std::cin >> std::ws, line);
@@ -804,6 +806,9 @@ namespace Basic
             }
             else
                 throw Exception_Iter(m_Cursor, "Expected variable name");
+
+            if (!IsEnd() && m_Cursor->type == Token::Type::Semicolon)
+                throw Exception_Iter(m_Cursor, "Unexpected semicolon");
         }
         catch (const Exception_Iter& e)
         {

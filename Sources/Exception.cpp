@@ -10,7 +10,7 @@ namespace Basic
 
         ss << "\n| ";
 
-        for (int i = 0; i < pos; i++)
+        for (int i = 1; i < pos; i++)
             ss << ' ';
 
         ss << "^\n| ";
