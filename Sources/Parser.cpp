@@ -23,6 +23,8 @@ namespace Basic
 		// If they remain 0 at the end then ok
 		int parenthesesBalancer = 0;
 		int quotesBalancer = 0;
+        
+        bool skipUntilNewLine = false;
 
 		auto ClassifyKeyword = [&]()
 		{
@@ -106,10 +108,20 @@ namespace Basic
 				// Skip whitespace
 				if (Guard::Whitespaces[*currentChar])
 				{
+                    if (skipUntilNewLine && *currentChar == '\n')
+                        skipUntilNewLine = false;
+                    
 					stateNext = State::NewToken;
 					currentChar++;
+                    
 					continue;
 				}
+                
+                if (skipUntilNewLine)
+                {
+                    currentChar++;
+                    continue;
+                }
 
 				// Check for a digit
 				if (Guard::DecDigits[*currentChar])
@@ -162,11 +174,6 @@ namespace Basic
 
 				else
 				{
-					// In MSX BASIC you can write any symbols in comments (i.e. after REM keyword)
-					// but because comments are handled at interpreter stage you can't do the same thing here
-
-					// TODO: Fix it
-
                     throw Exception(input, (int)std::distance(input.begin(), currentChar), std::string("Unexpected character ") + *currentChar);
 				}
 
@@ -237,6 +244,7 @@ namespace Basic
 					{
 						if (Guard::Symbols[*currentChar])
 							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+                        
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -250,6 +258,7 @@ namespace Basic
 					{
 						if (Guard::Symbols[*currentChar])
 							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+                        
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -263,6 +272,7 @@ namespace Basic
 					{
 						if (Guard::Symbols[*currentChar])
 							throw Exception(input, (int)std::distance(input.begin(), currentChar), "Invalid numeric literal or symbol");
+                        
 						stateNext = State::CompleteToken;
 					}
 				}
@@ -360,10 +370,14 @@ namespace Basic
 				case State::CompleteToken:
 				{
 					stateNext = State::NewToken;
-					tokens.push_back(token);
-
-					token.type = Token::Type::None;
-					token.value.clear();
+                    
+                    if (token.type == Token::Type::Keyword_Rem)
+                        skipUntilNewLine = true;
+                    else
+                        tokens.push_back(token);
+                    
+                    token.type = Token::Type::None;
+                    token.value.clear();
 				}
 				break;
                         
